@@ -72,7 +72,8 @@
   .dot.ok { background:var(--ok); }
   .leave { background:none; border:0; color:var(--fg2); font:500 15px inherit; font-family:inherit; margin:18px auto 0; display:block; cursor:pointer; padding:8px 14px; }
   /* YouTube's player has to stay on screen to play (its rules): kept small, at the bottom */
-  .yt { margin-top:22px; }
+  .engines { position:fixed; left:0; bottom:0; width:200px; height:200px; opacity:0; pointer-events:none; z-index:-1; overflow:hidden; }
+  .engines iframe, .engines #yt { position:absolute; inset:0; width:200px; height:200px; border:0; }
   .yt small { display:block; color:var(--fg3); font-size:12px; margin:0 0 8px 2px; }
   .ytbox { position:relative; width:100%; aspect-ratio:16/9; min-height:200px; border-radius:12px; overflow:hidden; background:#000; }
   .ytbox iframe, #yt { position:absolute; inset:0; width:100%; height:100%; border:0; }
@@ -159,17 +160,17 @@
       <button class="leave" id="leave" style="margin:0">Leave session</button>
       <button class="icon" id="qBtn" aria-label="Up next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h13M4 12h13M4 18h9"/><path d="M17 15.5v5l4-2.5z" fill="currentColor" stroke="none"/></svg><span class="n" id="qn" hidden></span></button>
     </div>
-    <div class="yt"><small>Playing from YouTube</small><div class="ytbox"><div id="yt"></div></div></div>
   </section>
-  <div class="foot">Listening together · works with A. Music on Android</div>
+  <div class="foot">Listening together · made by 7SN XOB</div>
 </div>
+<div class="engines" aria-hidden="true"><div id="yt"></div><iframe id="sc" allow="autoplay" title="SoundCloud" src="about:blank"></iframe></div>
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="qs" role="dialog" aria-label="Up next">
   <div class="grab"></div>
   <h2>Up next <button id="qx" aria-label="Close">✕</button></h2>
   <div class="linkbar"><input id="link" type="url" inputmode="url" placeholder="Paste a song link" autocomplete="off" spellcheck="false"></div>
   <div class="two"><button id="addNext"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>Play next</button><button class="alt" id="addLast">Add to queue</button></div>
-  <div class="small">YouTube, YouTube Music, Spotify, Apple Music, Deezer, Tidal, SoundCloud and more. The song goes to the host's queue.</div>
+  <div class="small">YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. The song goes to the host's queue.</div>
   <div class="list" id="ql"></div>
 </div>
 <div class="sheet info" id="is" role="dialog" aria-label="About">
@@ -182,7 +183,7 @@
       <li>Your friend opens <b>Listening together</b> in A. Music and starts a session.</li>
       <li>Type the code from their screen here and tap <b>Join</b>.</li>
       <li>On iPhone, tap <b>Tap for sound</b> once: Safari only plays sound after a tap.</li>
-      <li>Open <b>Up next</b> (bottom right) to see what's coming, paste a link to add a song, or move and remove songs.</li>
+      <li>Open <b>Up next</b> (bottom right) to see what's coming, move or remove songs, or paste a link: YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. Links from other services are found on YouTube Music by your friend's app.</li>
       <li>Tap ♥ or ✕ to tell the host what you think of a song.</li>
     </ul>
     <h3>Install it</h3>
@@ -191,14 +192,15 @@
       <li><b>Android, Windows, Mac:</b> the install icon in the address bar, or the browser menu → Install app.</li>
     </ul>
     <h3>Private by design</h3>
-    <p>No account and nothing to sign up for. The session code is the key: it names a private channel and locks every message (AES-256). Only tiny messages pass between you (song, play or pause, position), through two public relays. The music itself comes from YouTube.</p>
+    <p>No account and nothing to sign up for. The session code is the key: it names a private channel and locks every message (AES-256). Only tiny messages pass between you (song, play or pause, position), through two public relays.</p>
     <h3>Good to know</h3>
     <ul>
       <li>The host controls play, pause and skipping. You can add, move and remove songs in Up next.</li>
       <li>On iPhone the sound stops when the screen locks.</li>
-      <li>A few songs can't play outside YouTube, and SoundCloud or Bandcamp songs play in the app only.</li>
-      <li>YouTube's player has to stay on the page while it plays.</li>
+      <li>Songs come from YouTube and SoundCloud. A few YouTube songs can't play outside YouTube; Bandcamp songs play on the host's phone only.</li>
     </ul>
+    <h3>Credits</h3>
+    <p><b>Made by 7SN XOB</b> · <span style="color:var(--fg)">@x1ob</span> on Instagram.<br>A. Music for Android and this page are part of the same project.</p>
     <p style="margin-top:18px;color:var(--fg3)">A. Music · Listening together · protocol 1</p>
   </div>
 </div>
@@ -212,29 +214,69 @@ function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('on
 const fmt = ms => { ms = Math.max(0, ms | 0); const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 // the player the protocol drives: YouTube's own embedded player
-let soundOn = false;
+let soundOn = false, kind = 'yt', sc = null, scReady = false, scPos = 0, scPaused = true, scWant = null;
+// one face for the protocol, two engines behind it: YouTube's player and SoundCloud's widget (both kept off screen)
 const player = {
   get ready() { return ytReady; },
   id: () => curId,
   load(id, sec, play) {
-    curId = id;
-    if (!soundOn) ytp.mute();
-    if (play) ytp.loadVideoById({ videoId: id, startSeconds: sec }); else ytp.cueVideoById({ videoId: id, startSeconds: sec });
+    const k = TG.kindOf(id);
+    if (k === 'bc') { if (curId !== id) toast('Bandcamp songs play in the app only – waiting for the next song'); curId = id; stopAll(); return; }
+    curId = id; kind = k;
+    if (k === 'yt') {
+      if (sc && scReady) sc.pause();
+      if (!soundOn) ytp.mute();
+      if (play) ytp.loadVideoById({ videoId: id, startSeconds: sec }); else ytp.cueVideoById({ videoId: id, startSeconds: sec });
+    } else {
+      ytReady && ytp.pauseVideo();
+      scLoad(TG.urlOf(id), sec * 1000, play);
+    }
   },
-  play: () => ytp.playVideo(), pause: () => ytReady && ytp.pauseVideo(), seek: s => ytp.seekTo(s, true),
-  time: () => ytReady && curId ? ytp.getCurrentTime() : -1,
-  playing: () => ytReady && ytp.getPlayerState() === 1
+  play() { if (kind === 'yt') ytp.playVideo(); else if (scReady) sc.play(); },
+  pause() { if (kind === 'yt') { ytReady && ytp.pauseVideo(); } else if (scReady) sc.pause(); },
+  seek(s) { if (kind === 'yt') ytp.seekTo(s, true); else if (scReady) { sc.seekTo(s * 1000); scPos = s * 1000; } },
+  time() { if (!curId || TG.kindOf(curId) === 'bc') return -1; return kind === 'yt' ? (ytReady ? ytp.getCurrentTime() : -1) : (scReady ? scPos / 1000 : -1); },
+  playing() { return kind === 'yt' ? ytReady && ytp.getPlayerState() === 1 : scReady && !scPaused; }
 };
+function stopAll() { try { ytReady && ytp.pauseVideo(); } catch (e) {} try { scReady && sc.pause(); } catch (e) {} }
+function scLoad(url, ms, play) {
+  scWant = { url, ms, play };
+  if (!window.SC) { const t = document.createElement('script'); t.src = 'https://w.soundcloud.com/player/api.js'; t.onload = () => scLoad(url, ms, play); document.head.appendChild(t); return; }
+  const f = $('sc');
+  if (!sc) {
+    f.src = 'https://w.soundcloud.com/player/?visual=false&auto_play=false&url=' + encodeURIComponent(url);
+    sc = SC.Widget(f);
+    sc.bind(SC.Widget.Events.READY, () => { scReady = true; scStart(); });
+    sc.bind(SC.Widget.Events.PLAY_PROGRESS, e => { scPos = e.currentPosition; });
+    sc.bind(SC.Widget.Events.PLAY, () => { scPaused = false; checkSound(); });
+    sc.bind(SC.Widget.Events.PAUSE, () => { scPaused = true; });
+    sc.bind(SC.Widget.Events.FINISH, () => { scPaused = true; });
+    sc.bind(SC.Widget.Events.ERROR, () => toast('This SoundCloud song didn’t load'));
+    return;
+  }
+  scReady = false;
+  sc.load(url, { auto_play: false, visual: false, callback: () => { scReady = true; scStart(); } });
+}
+function scStart() {
+  const w = scWant; if (!w) return;
+  sc.setVolume(soundOn ? 100 : 0);
+  if (w.play) sc.play();
+  setTimeout(() => { sc.seekTo(w.ms); scPos = w.ms; }, 300);
+}
 // iPhone and most browsers only let a page make sound after a tap: the song starts muted, a tap turns the sound on
 function unlock() {
-  if (!ytReady) return;
   soundOn = true;
-  try { ytp.unMute(); ytp.setVolume(100); if (TG.state().song.playing) ytp.playVideo(); } catch (e) {}
+  try { if (ytReady) { ytp.unMute(); ytp.setVolume(100); if (kind === 'yt' && TG.state().song.playing) ytp.playVideo(); } } catch (e) {}
+  try { if (scReady) { sc.setVolume(100); if (kind === 'sc' && TG.state().song.playing) sc.play(); } } catch (e) {}
   setTimeout(checkSound, 600);
 }
-function checkSound() { const muted = !ytReady || ytp.isMuted(); if (!muted) soundOn = true; $('tap').hidden = !curId || !muted; }
+function checkSound() {
+  let muted;
+  if (kind === 'sc') muted = !soundOn; else { muted = !ytReady || ytp.isMuted(); if (!muted) soundOn = true; }
+  $('tap').hidden = !curId || TG.kindOf(curId) === 'bc' || !muted;
+}
 window.onYouTubeIframeAPIReady = () => {
-  ytp = new YT.Player('yt', { playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
+  ytp = new YT.Player('yt', { width: 200, height: 200, playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
     events: { onReady: () => { ytReady = true; }, onStateChange: () => checkSound(),
               onError: e => { toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); } } });
 };
@@ -257,7 +299,7 @@ function draw() {
   const song = s.song, anyUp = s.up.some(x => x);
   setArt(song.id ? song.thumb : '');
   $('art').classList.toggle('paused', !(song.id && song.playing));
-  if (ytReady) checkSound();
+  checkSound();
   $('ti').textContent = song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…');
   $('ar').textContent = song.id ? song.artist || '' : '\u00a0';
   const pos = song.id ? s.exp : 0;
@@ -367,19 +409,45 @@ async function fromSongLink(u) {
   if (e.thumbnailUrl && e.thumbnailUrl.startsWith('https://')) song.th = e.thumbnailUrl;
   return song;
 }
+function scClean(u) { const x = new URL(u); x.search = ''; x.hash = ''; x.hostname = x.hostname.replace(/^(m|www)\./, ''); return x.toString().replace(/\/$/, ''); }
+async function fromSoundCloud(u) {
+  let url = u;
+  if (/on\.soundcloud\.com|snd\.sc/.test(new URL(u).hostname)) throw new Error('short');   // short links need the app
+  url = scClean(url);
+  let ti = '', ar = '', th = '';
+  try { const o = await (await fetch('https://soundcloud.com/oembed?format=json&url=' + encodeURIComponent(url))).json(); ti = o.title || ''; ar = o.author_name || ''; th = o.thumbnail_url || '';
+        const m = ti.match(/^(.+?) by (.+)$/); if (m) { ti = m[1]; ar = ar || m[2]; } } catch (e) {}
+  if (!ti) { const p = new URL(url).pathname.split('/').filter(Boolean); ar = ar || p[0] || ''; ti = (p[1] || 'SoundCloud song').replace(/-/g, ' '); }
+  return { id: 'xs' + TG.b64url(url), ti, ar, th: th.startsWith('https://') ? th : '' };
+}
+function fromBandcamp(u) {
+  const x = new URL(u); x.search = ''; x.hash = '';
+  const slug = (x.pathname.match(/\/track\/([^/]+)/) || [])[1] || '';
+  const nice = t => t.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return { id: 'xb' + TG.b64url(x.toString()), ti: nice(slug) || 'Bandcamp song', ar: nice(x.hostname.split('.')[0]), th: '' };
+}
 let adding = false;
 async function addLink(next) {
   const u = $('link').value.trim();
   if (!u) { $('link').focus(); toast('Paste a song link first'); return; }
-  if (!/^https?:\/\//i.test(u)) { toast('That doesn\u2019t look like a link'); return; }
-  if (/[?&]list=|\/playlist|\/album\/|\/artist\//i.test(u) && !ytId(u)) { toast('Songs only for now \u2013 open the song and share its link'); return; }
+  if (!/^https?:\/\//i.test(u)) { toast('That doesn’t look like a link'); return; }
+  let host = ''; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) { toast('That doesn’t look like a link'); return; }
+  if (/[?&]list=|\/playlist|\/album\/|\/artist\/|\/sets\//i.test(u) && !ytId(u)) { toast('Songs only for now – open the song and share its link'); return; }
   if (adding) return; adding = true; $('addNext').disabled = $('addLast').disabled = true;
   try {
-    const id = ytId(u), song = id ? await fromYouTube(id) : await fromSongLink(u);
+    let song, note = '';
+    const id = ytId(u);
+    if (id) song = await fromYouTube(id);
+    else if (/(^|\.)soundcloud\.com$|snd\.sc$/.test(host)) song = await fromSoundCloud(u);
+    else if (/(^|\.)bandcamp\.com$/.test(host) && /\/track\//.test(u)) { song = fromBandcamp(u); note = ' (plays on the host’s phone)'; }
+    else if (TG.hostFinds()) song = { lk: u, ti: '', ar: '' };          // the host's app finds it on YouTube Music, as it does for shared links
+    else song = await fromSongLink(u);
     const ok = TG.request(song, next);
     $('link').value = '';
-    toast(ok ? (next ? '\u201C' + song.ti + '\u201D plays next' : '\u201C' + song.ti + '\u201D added to the queue') : 'Not connected to the host right now');
-  } catch (e) { toast('Couldn\u2019t find that song on YouTube'); }
+    if (!ok) toast('Not connected to the host right now');
+    else if (song.lk) toast('Sent – the host’s app is finding it on YouTube Music');
+    else toast((next ? '“' + song.ti + '” plays next' : '“' + song.ti + '” added to the queue') + note);
+  } catch (e) { toast(TG.hostFinds() ? 'Couldn’t read that link' : 'Couldn’t find that song – your friend may need the newest A. Music'); }
   finally { adding = false; $('addNext').disabled = $('addLast').disabled = false; }
 }
 $('addNext').onclick = () => addLink(true);

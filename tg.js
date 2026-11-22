@@ -113,17 +113,29 @@ const TG = (() => {
   // ---- following the host (Together.remote / enforce, the same rules)
   const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
   const g = { loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
-  const validId = id => /^[A-Za-z0-9_-]{11}$/.test(id);
+  // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
+  const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64url = id => { try { return decodeURIComponent(escape(atob(id.replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { return ''; } };
+  function urlOf(id) {
+    if (!/^x[sb][A-Za-z0-9_-]{8,700}$/.test(id)) return '';
+    const u = unb64url(id.slice(2)); let h;
+    try { if (!u.startsWith('https://') || u.length > 900) return ''; h = new URL(u).hostname; } catch (e) { return ''; }
+    if (!h || h.length < 4 || !h.includes('.') || /^[0-9.]+$/.test(h) || h === 'localhost' || /\.(local|internal)$/.test(h)) return '';
+    if (id[1] === 's' && !(h === 'soundcloud.com' || h.endsWith('.soundcloud.com'))) return '';
+    return u;
+  }
+  const validId = id => /^[A-Za-z0-9_-]{11}$/.test(id) || !!urlOf(id);
+  const kindOf = id => /^xs/.test(id) ? 'sc' : /^xb/.test(id) ? 'bc' : 'yt';
   const clip = (s, n) => String(s || '').slice(0, n);
   function remote(m, age) {
     if (m.idle === 1) return;
     r.local = m.lo === 1; r.playing = m.pl === 1;
     if (r.local) { r.id = ''; player && player.pause(); say('The host is playing a song from their phone – waiting'); return; }
     const id = String(m.id || '');
-    if (!validId(id)) { if (/^x[sb]/.test(id)) say('This song is from SoundCloud or Bandcamp – it can only play in the app'); return; }
+    if (!validId(id)) return;
     const delay = 150 + age, isNew = id !== r.id;
     r.id = id; r.title = clip(m.ti, 200); r.artist = clip(m.ar, 200);
-    const th = clip(m.th, 600); r.thumb = th.startsWith('https://') ? th : 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
+    const th = clip(m.th, 600); r.thumb = th.startsWith('https://') ? th : kindOf(id) === 'yt' ? 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' : '';
     r.dur = Math.max(0, Math.min(43200000, m.du || 0));
     r.pos = Math.max(0, Math.min(43200000, (m.po || 0) + (r.playing ? delay : 0)));
     r.at = performance.now(); r.isNew = true;
@@ -166,7 +178,7 @@ const TG = (() => {
   const jhash = str => { let h = 0; for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; return h; };   // Java String.hashCode
   function mirror(q) {
     q = q.slice(0, 4000); st.qRaw = q; st.rQh = jhash(q); st.rQhSet = true; st.hostQh = st.rQh; st.hostQhSet = true; st.qMis = 0;
-    st.qList = q ? q.split(RS).map(one => { const f = one.split(FS); return { id: f[0], ti: f[1] || '', ar: f[2] || '', du: +f[3] || 0, th: (f[4] || '').startsWith('https://') ? f[4] : 'https://i.ytimg.com/vi/' + f[0] + '/hqdefault.jpg' }; }).filter(x => validId(x.id)) : [];
+    st.qList = q ? q.split(RS).map(one => { const f = one.split(FS); return { id: f[0], ti: f[1] || '', ar: f[2] || '', du: +f[3] || 0, th: (f[4] || '').startsWith('https://') ? f[4] : (kindOf(f[0]) === 'yt' ? 'https://i.ytimg.com/vi/' + f[0] + '/hqdefault.jpg' : '') }; }).filter(x => validId(x.id)) : [];
     TG.onQueue && TG.onQueue(st.qList.slice());
   }
   function checkQueueHash(now) {
@@ -179,7 +191,8 @@ const TG = (() => {
   }
   function request(song, next) {
     if (!st.on) return false;
-    const qi = rnd(8), body = { nx: next ? 1 : 0, id: song.id, ti: clip(song.ti, 200), ar: clip(song.ar, 200), al: clip(song.al, 200), th: clip(song.th, 600), du: song.du || 0, qi };
+    const qi = rnd(8), body = { nx: next ? 1 : 0, id: song.id || '', ti: clip(song.ti, 200), ar: clip(song.ar, 200), al: clip(song.al, 200), th: clip(song.th, 600), du: song.du || 0, qi };
+    if (song.lk) body.lk = clip(song.lk, 600);
     st.pend.push({ qi, body, at: performance.now(), tries: 1 }); if (st.pend.length > 12) st.pend.shift();
     send(msg('q', body)); return !!st.hostId;
   }
@@ -228,7 +241,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  return { join, leave, react, clean, request, edit, validId, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
+  return { join, leave, react, clean, request, edit, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;
