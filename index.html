@@ -174,6 +174,19 @@
     .hero { max-width:440px; margin:auto; }
   }
   @media (hover:hover) { .ctl, .icon, .btn, .two button, .rowi .ac button { transition:background .15s, transform .15s; } .btn:hover, .two button:hover { filter:brightness(1.12); } }
+  /* favourites: the save button beside the title, and the saved list */
+  .meta { display:flex; align-items:center; gap:12px; }
+  .meta .mt { flex:1; min-width:0; }
+  .fav { flex:none; width:44px; height:44px; border:0; border-radius:50%; background:var(--glass); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .2s, background .2s; }
+  .fav svg { width:22px; height:22px; }
+  .fav.on { color:#FF375F; }
+  .fav.on svg path { fill:currentColor; }
+  .fav:active { transform:scale(.86); }
+  .fav[hidden] { display:none; }
+  .lgrp { display:flex; gap:4px; }
+  .bottom { display:grid; grid-template-columns:1fr auto 1fr; }
+  .bottom #qBtn { justify-self:end; }
+  .savedlink { display:block; margin:14px auto 0; background:none; border:0; color:var(--fg2); font:500 15px inherit; font-family:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
   @media (prefers-reduced-motion: reduce) { .bg i, .bg.idle::before { animation:none; } }
 </style>
 </head>
@@ -192,12 +205,13 @@
       <button class="btn" id="go">Join</button>
       <div class="hint">The code is on your friend's Listening together screen.</div>
     </div>
+    <button class="savedlink" id="savedLink" hidden></button>
   </section>
 
   <section id="live" class="live" hidden>
     <div class="art paused" id="art"><div class="ph" id="ph"><img src="glyph.svg" alt=""></div><button class="tap" id="tap" hidden><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>Tap for sound</button></div>
     <div class="lyr" id="lyr"><div class="pad"></div><div id="lyl"></div><div class="pad"></div></div>
-    <div class="meta"><div class="title" id="ti">Waiting for the host…</div><div class="artist" id="ar">&nbsp;</div></div>
+    <div class="meta"><div class="mt"><div class="title" id="ti">Waiting for the host…</div><div class="artist" id="ar">&nbsp;</div></div><button class="fav" id="fav" aria-label="Save to favourites" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.4l2.6 5.5 6 .8-4.4 4.1 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.7l6-.8z"/></svg></button></div>
     <div class="bar"><i id="pr"></i></div>
     <div class="times"><span id="t0">0:00</span><span class="badge" id="badge" title=""><i></i>Listening together</span><span id="t1">0:00</span></div>
     <div class="controls">
@@ -206,7 +220,7 @@
     </div>
     <div class="status" id="status">Connecting…</div>
     <div class="bottom">
-      <button class="icon" id="lyBtn" aria-label="Lyrics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5" stroke-linecap="round"/></svg></button>
+      <div class="lgrp"><button class="icon" id="lyBtn" aria-label="Lyrics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5" stroke-linecap="round"/></svg></button><button class="icon" id="fvBtn" aria-label="Favourites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.4l2.6 5.5 6 .8-4.4 4.1 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.7l6-.8z"/></svg><span class="n" id="fvn" hidden></span></button></div>
       <button class="leave" id="leave" style="margin:0">Leave</button>
       <button class="icon" id="qBtn" aria-label="Up next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h13M4 12h13M4 18h9"/><path d="M17 15.5v5l4-2.5z" fill="currentColor" stroke="none"/></svg><span class="n" id="qn" hidden></span></button>
     </div>
@@ -224,6 +238,13 @@
   <div class="list" id="sr" hidden></div>
   <div class="list" id="ql"></div>
 </div>
+<div class="sheet" id="fs" role="dialog" aria-label="Favourites">
+  <div class="grab"></div>
+  <h2>Favourites <button id="fx" aria-label="Close">✕</button></h2>
+  <div class="small" id="fnote" style="margin:0 2px 10px">Songs you save are kept in this browser, session after session. Download them as a playlist (.m3u) any time.</div>
+  <div class="two" style="margin-top:0"><button id="fdl"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download playlist</button><button class="alt" id="fcopy">Copy links</button></div>
+  <div class="list" id="fl"></div>
+</div>
 <div class="sheet info" id="is" role="dialog" aria-label="About">
   <div class="grab"></div>
   <h2>About <button id="ix" aria-label="Close">✕</button></h2>
@@ -236,6 +257,7 @@
       <li>On iPhone, tap <b>Tap for sound</b> once: Safari only plays sound after a tap.</li>
       <li>Open <b>Up next</b> (bottom right) to see what's coming, move or remove songs, <b>search</b> for a song (your friend's A. Music searches YouTube Music for you), or paste a link: YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. Links from other services are found on YouTube Music by your friend's app.</li>
       <li>Tap ♥ or ✕ to tell the host what you think of a song.</li>
+      <li>Tap ☆ next to the title to save a song to your <b>Favourites</b> (the star at the bottom left). They stay in this browser for next time, and you can download them as a playlist (.m3u) or copy the links. When you leave a session where you saved songs, the list opens so you can download it.</li>
     </ul>
     <h3>Install it</h3>
     <ul>
@@ -378,6 +400,7 @@ function draw() {
   lyricsTick(song, pos);
   document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
   session(song);
+  favHeart();
 }
 function burst(e) { const b = document.createElement('div'); b.className = 'float'; b.textContent = e; b.style.left = (20 + Math.random() * 60) + '%'; b.style.bottom = '120px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1700); }
 TG.onReaction = k => burst(k === 'heart' ? '❤️' : '✕');
@@ -396,20 +419,100 @@ $('go').onclick = async () => {
 $('tap').onclick = e => { e.stopPropagation(); unlock(); };
 document.addEventListener('touchend', () => { if (!soundOn && curId) unlock(); }, { passive: true });
 document.addEventListener('click', () => { if (!soundOn && curId) unlock(); });
-$('leave').onclick = () => { TG.leave(true); try { history.replaceState(null, '', location.pathname); } catch (e) {} draw(); };
+$('leave').onclick = () => { TG.leave(true); try { history.replaceState(null, '', location.pathname); } catch (e) {} draw(); if (favsNew > 0) { $('fnote').textContent = 'You saved ' + favsNew + (favsNew === 1 ? ' song' : ' songs') + ' this session. They stay here for next time; download the playlist to keep a copy.'; favDraw(); sheet('fs', true); favsNew = 0; } };
 $('heart').onclick = () => { TG.react('heart'); burst('❤️'); };
 
 $('nope').onclick = () => { TG.react('nope'); burst('✕'); };
 window.addEventListener('pagehide', () => TG.leave(true));
 
 // ---- sheets
-function sheet(id, on) { $(id).classList.toggle('on', on); $('scrim').classList.toggle('on', $('qs').classList.contains('on') || $('is').classList.contains('on')); }
+const SHEETS = ['qs', 'is', 'fs'];
+function sheet(id, on) { $(id).classList.toggle('on', on); $('scrim').classList.toggle('on', SHEETS.some(k => $(k).classList.contains('on'))); }
+
+// ---- favourites: kept in this browser (localStorage, plus a copy in IndexedDB in case one is cleared), downloadable as .m3u
+const FKEY = 'amt-favs-v1';
+let favs = [], favsNew = 0;
+function favLoad() {
+  try { favs = JSON.parse(localStorage.getItem(FKEY) || '[]'); } catch (e) { favs = []; }
+  if (!Array.isArray(favs)) favs = [];
+  try {
+    const rq = indexedDB.open('amt', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+    rq.onsuccess = () => { try { const g = rq.result.transaction('kv').objectStore('kv').get(FKEY); g.onsuccess = () => {
+      const more = Array.isArray(g.result) ? g.result : [];
+      let added = 0; for (const f of more) if (!favs.some(x => x.key === f.key)) { favs.push(f); added++; }
+      if (added) { favs.sort((a, b) => b.at - a.at); favSave(); }
+      favDraw();
+    }; } catch (e) {} };
+  } catch (e) {}
+}
+function favSave() {
+  try { localStorage.setItem(FKEY, JSON.stringify(favs)); } catch (e) {}
+  try { const rq = indexedDB.open('amt', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('kv'); rq.onsuccess = () => { try { rq.result.transaction('kv', 'readwrite').objectStore('kv').put(favs, FKEY); } catch (e) {} }; } catch (e) {}
+}
+const favKey = song => song.id ? song.id : 'n:' + (song.title || '').toLowerCase() + '|' + (song.artist || '').toLowerCase();
+function favUrl(f) {
+  if (f.id && TG.kindOf(f.id) === 'yt' && TG.validId(f.id)) return 'https://music.youtube.com/watch?v=' + f.id;
+  if (f.id && TG.validId(f.id)) return TG.urlOf(f.id);
+  return 'https://music.youtube.com/search?q=' + encodeURIComponent((f.ti + ' ' + (f.ar || '')).trim());
+}
+function favToggle() {
+  const song = TG.state().song; if (!song.id && !(song.local && song.title)) return;
+  const k = favKey(song), i = favs.findIndex(x => x.key === k);
+  if (i >= 0) { favs.splice(i, 1); favsNew = Math.max(0, favsNew - 1); toast('Removed from favourites'); }
+  else { favs.unshift({ key: k, id: song.id || '', ti: song.title || 'Unknown song', ar: song.artist || '', th: song.thumb || '', du: song.dur || 0, at: Date.now() }); favsNew++; toast('Saved to favourites'); }
+  favSave(); favDraw();
+}
+function favHeart() {
+  const song = TG.state().song, can = !!(song.id || (song.local && song.title));
+  if ($('fav').hidden !== !can) $('fav').hidden = !can;
+  const on = can && favs.some(x => x.key === favKey(song));
+  if ($('fav').classList.contains('on') !== on) { $('fav').classList.toggle('on', on); $('fav').setAttribute('aria-label', on ? 'Remove from favourites' : 'Save to favourites'); }
+}
+function favDraw() {
+  favHeart();
+  $('fvn').hidden = !favs.length; $('fvn').textContent = favs.length;
+  $('savedLink').hidden = !favs.length; $('savedLink').textContent = 'Your favourites (' + favs.length + ')';
+  $('fdl').disabled = $('fcopy').disabled = !favs.length;
+  $('fl').innerHTML = favs.length ? favs.map((f, i) => {
+    const yt = /i\.ytimg\.com/.test(f.th);
+    return '<div class="rowi"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(f.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(f.ti) + '</div><div class="t2">' + esc(f.ar) + '</div></div>' +
+      '<div class="ac"><button data-f="add" data-i="' + i + '" aria-label="Play next">' + ICON_UP + '</button><button data-f="rm" data-i="' + i + '" aria-label="Remove">' + ICON_X + '</button></div></div>';
+  }).join('') : '<div class="empty">Nothing saved yet. Tap the heart next to a song’s title to keep it.</div>';
+}
+function favM3u() {
+  return '#EXTM3U\n#PLAYLIST:A. Music Together favourites\n' + favs.slice().reverse().map(f => '#EXTINF:' + (f.du ? Math.round(f.du / 1000) : -1) + ',' + (f.ar ? f.ar + ' - ' : '') + f.ti + '\n' + favUrl(f)).join('\n') + '\n';
+}
+function favDownload() {
+  if (!favs.length) return;
+  const d = new Date(), name = 'A-Music-Together-favourites-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.m3u';
+  const url = URL.createObjectURL(new Blob([favM3u()], { type: 'audio/x-mpegurl' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  favsNew = 0;
+}
+$('fav').onclick = e => { e.stopPropagation(); favToggle(); };
+$('fvBtn').onclick = () => { favDraw(); sheet('fs', true); };
+$('savedLink').onclick = () => { favDraw(); sheet('fs', true); };
+$('fx').onclick = () => sheet('fs', false);
+$('fdl').onclick = favDownload;
+$('fcopy').onclick = () => { const t = favs.map(f => (f.ar ? f.ar + ' - ' : '') + f.ti + '  ' + favUrl(f)).join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Links copied'), () => prompt('Copy this:', t)); };
+$('fl').onclick = e => {
+  const b = e.target.closest('button[data-f]'); if (!b) return;
+  const f = favs[+b.dataset.i]; if (!f) return;
+  if (b.dataset.f === 'rm') { favs.splice(+b.dataset.i, 1); favSave(); favDraw(); toast('Removed from favourites'); return; }
+  if (!TG.state().on) { toast('Join a session to add it to Up next'); return; }
+  const ok = TG.request(f.id && TG.validId(f.id) ? { id: f.id, ti: f.ti, ar: f.ar, th: f.th, du: f.du } : { ti: f.ti, ar: f.ar, lk: favUrl(f) }, true);
+  toast(ok ? 'Asked the host to play \u201C' + f.ti + '\u201D next' : 'Not connected to the host right now');
+};
+window.addEventListener('storage', e => { if (e.key === FKEY) { favLoad(); favDraw(); } });
+favLoad(); favDraw();
 $('qBtn').onclick = () => { drawQueue(); sheet('qs', true); };
 $('infoBtn').onclick = () => sheet('is', true);
 $('qx').onclick = () => sheet('qs', false);
 $('ix').onclick = () => sheet('is', false);
-$('scrim').onclick = () => { sheet('qs', false); sheet('is', false); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { sheet('qs', false); sheet('is', false); } });
+$('scrim').onclick = () => SHEETS.forEach(k => sheet(k, false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') SHEETS.forEach(k => sheet(k, false)); });
 
 // ---- up next: the host's list; move to the top or remove (the host does the same)
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
