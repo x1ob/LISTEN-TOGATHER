@@ -51,8 +51,17 @@ const TG = (() => {
   async function send(m) {
     if (!st.key) return;
     const body = await seal(JSON.stringify(m), st.key);
-    RELAYS.forEach(r => fetch(r + st.topic, { method: 'POST', body }).catch(() => {}));
+    // a relay that answers "too many requests" (429) rests for a while; the other one carries the messages
+    const now = performance.now(), up = RELAYS.map((_, i) => now >= (rest.until[i] || 0)), anyUp = up.some(x => x);
+    RELAYS.forEach((r, i) => {
+      if (anyUp && !up[i]) return;
+      fetch(r + st.topic, { method: 'POST', body }).then(res => {
+        if (res.status === 429) { rest.for[i] = Math.min(600000, (rest.for[i] || 30000) * 2); rest.until[i] = performance.now() + rest.for[i]; note(r.replace('https://', '') + ' busy - resting ' + Math.round(rest.for[i] / 1000) + ' s'); }
+        else if (res.ok) rest.for[i] = 0;
+      }).catch(() => {});
+    });
   }
+  const rest = { until: [], for: [] };
   function fresh(id) { if (!id) return true; if (st.seen.includes(id)) return false; st.seen.push(id); if (st.seen.length > 60) st.seen.shift(); return true; }
 
   function listen(i) {
