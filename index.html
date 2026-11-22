@@ -387,14 +387,14 @@ const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 function row(x, now) {
   const yt = /i\.ytimg\.com/.test(x.th);
-  return '<div class="rowi' + (now ? ' now' : '') + '"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(x.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(x.ti || 'Unknown song') + '</div><div class="t2">' + esc(x.ar || '') + '</div></div>' +
+  return '<div class="rowi' + (now ? ' now' : '') + '"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(x.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(x.ti || 'Unknown song') + '</div><div class="t2">' + esc(x.phone ? (x.ar ? x.ar + ' \u00B7 ' : '') + 'from the host\u2019s phone' : (x.ar || '')) + '</div></div>' +
     (now ? '' : '<div class="ac"><button data-a="up" data-id="' + esc(x.id) + '" aria-label="Play next">' + ICON_UP + '</button><button data-a="rm" data-id="' + esc(x.id) + '" aria-label="Remove">' + ICON_X + '</button></div>') + '</div>';
 }
 function drawQueue() {
   const q = TG.queue(), s = TG.state(), song = s.song;
   $('qn').hidden = !q.length; $('qn').textContent = q.length;
   let h = '';
-  if (song.id) h += '<div class="sec">Now playing</div>' + row({ id: song.id, ti: song.title, ar: song.artist, th: song.thumb }, true);
+  if (song.id || (song.local && song.title)) h += '<div class="sec">Now playing</div>' + row({ id: song.id, ti: song.title, ar: song.local ? (song.artist ? song.artist + ' \u00B7 ' : '') + 'from the host\u2019s phone' : song.artist, th: song.thumb }, true);
   h += '<div class="sec" style="margin-top:16px">Playing next</div>';
   h += q.length ? q.map(x => row(x, false)).join('') : '<div class="empty">Nothing queued yet. Paste a link above to add a song.</div>';
   $('ql').innerHTML = h;

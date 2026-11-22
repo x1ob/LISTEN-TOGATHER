@@ -135,7 +135,7 @@ const TG = (() => {
   function remote(m, age) {
     if (m.idle === 1) return;
     r.local = m.lo === 1; r.playing = m.pl === 1;
-    if (r.local) { r.id = ''; player && player.pause(); say('The host is playing a song from their phone – waiting'); return; }
+    if (r.local) { r.id = ''; r.title = clip(m.ti, 200); r.artist = clip(m.ar, 200); r.thumb = ''; player && player.pause(); say('The host is playing a song from their phone \u2013 finding it online\u2026'); return; }
     const id = String(m.id || '');
     if (!validId(id)) return;
     const delay = 150 + age, isNew = id !== r.id;
@@ -186,10 +186,11 @@ const TG = (() => {
   }
   // ---- the host's up-next list (Together.hostQueue / mirror), song requests (sendQueued) and edits (guestEdit)
   const FS = '\u001f', RS = '\u001e';
+  const isPhone = id => /^-l[A-Za-z0-9_-]{1,30}$/.test(id);       // a song from the host's phone (its online version plays when it starts)
   const jhash = str => { let h = 0; for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; return h; };   // Java String.hashCode
   function mirror(q) {
     q = q.slice(0, 4000); st.qRaw = q; st.rQh = jhash(q); st.rQhSet = true; st.hostQh = st.rQh; st.hostQhSet = true; st.qMis = 0;
-    st.qList = q ? q.split(RS).map(one => { const f = one.split(FS); return { id: f[0], ti: f[1] || '', ar: f[2] || '', du: +f[3] || 0, th: (f[4] || '').startsWith('https://') ? f[4] : (kindOf(f[0]) === 'yt' ? 'https://i.ytimg.com/vi/' + f[0] + '/hqdefault.jpg' : '') }; }).filter(x => validId(x.id)) : [];
+    st.qList = q ? q.split(RS).map(one => { const f = one.split(FS); return { id: f[0], ti: f[1] || '', ar: f[2] || '', du: +f[3] || 0, th: (f[4] || '').startsWith('https://') ? f[4] : (kindOf(f[0]) === 'yt' && validId(f[0]) ? 'https://i.ytimg.com/vi/' + f[0] + '/hqdefault.jpg' : ''), phone: isPhone(f[0]) }; }).filter(x => validId(x.id) || x.phone) : [];
     TG.onQueue && TG.onQueue(st.qList.slice());
   }
   function checkQueueHash(now) {
@@ -224,7 +225,7 @@ const TG = (() => {
   function edit(ids) {
     if (!st.on || !st.hostId) return 'nohost';
     if (st.hostCap < CAP) return 'old';
-    send(msg('qe', { q: ids.join(RS), b: st.rQh }));
+    send(msg('qe', { q: ids.join(RS), b: st.rQh, al: 1 }));
     st.qList = ids.map(id => st.qList.find(x => x.id === id)).filter(Boolean); TG.onQueue && TG.onQueue(st.qList.slice());
     return 'ok';
   }
