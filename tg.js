@@ -117,7 +117,7 @@ const TG = (() => {
 
   // ---- following the host (Together.remote / enforce, the same rules)
   const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
-  const g = { loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
+  const g = { ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
   // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
   const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64url = id => { try { return decodeURIComponent(escape(atob(id.replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { return ''; } };
@@ -162,6 +162,12 @@ const TG = (() => {
     else if (!r.playing && pl) { g.steadySince = 0; player.pause(); }
     if (pl && !g.steadySince) g.steadySince = now;
     const pos = player.time() * 1000; if (pos < 0) return;
+    // an ad: the player says it is playing but the song's clock stands still. Hold the sync until the song runs again.
+    if (pl && r.playing) {
+      if (Math.abs(pos - g.lastT) > 20) { g.lastT = pos; g.lastTAt = now; if (g.ad) { g.ad = false; g.seekCool = 0; g.bigTries = 0; } }
+      else if (now - g.lastTAt > 1800) g.ad = true;
+    } else { g.lastT = pos; g.lastTAt = now; }
+    if (g.ad) { g.drift = 0; return; }
     const drift = pos - exp; g.drift = drift;
     const jump = () => { player.seek(Math.max(0, exp + (r.playing ? g.lead : 0)) / 1000); g.steadySince = 0; g.checkLead = r.playing; };
     if (r.seek) { r.seek = false; if (Math.abs(drift) > 800) { jump(); g.seekCool = now + 5000; } return; }
@@ -251,7 +257,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  return { join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
+  return { join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;

@@ -61,12 +61,28 @@
   .artist { color:var(--fg2); font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bar { height:6px; background:rgba(255,255,255,.2); border-radius:3px; margin:20px 0 8px; overflow:hidden; }
   .bar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:3px; }
-  .times { display:flex; justify-content:space-between; color:var(--fg2); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .times { display:flex; align-items:center; justify-content:space-between; color:var(--fg2); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
   .controls { display:flex; align-items:center; justify-content:space-evenly; margin:26px 0 10px; }
   .ctl { width:76px; height:76px; border:0; border-radius:50%; background:transparent; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s, background .15s; }
   .ctl:active { transform:scale(.86); background:rgba(255,255,255,.12); }
   .ctl svg { width:40px; height:40px; }
-  .status { display:flex; justify-content:center; margin-top:8px; }
+  /* the app's badge spot (where Lossless / Dolby Atmos sits): small dot + Listening together */
+  .badge { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,.2); color:rgba(255,255,255,.9); font-size:11px; font-weight:600; letter-spacing:.2px; cursor:default; }
+  .badge i { width:6px; height:6px; border-radius:50%; background:var(--warn); box-shadow:0 0 6px var(--warn); transition:background .4s, box-shadow .4s; }
+  .badge.ok i { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .status { display:flex; justify-content:center; margin-top:2px; min-height:20px; color:var(--fg2); font-size:13px; }
+  /* lyrics, as in the app: the line being sung bright, the others dim and soft */
+  .lyr { position:relative; width:100%; aspect-ratio:1; margin:26px auto 0; overflow-y:auto; scrollbar-width:none; -webkit-mask-image:linear-gradient(transparent 0,#000 14%,#000 80%,transparent 100%); mask-image:linear-gradient(transparent 0,#000 14%,#000 80%,transparent 100%); }
+  .lyr::-webkit-scrollbar { display:none; }
+  .lyr .pad { height:38%; }
+  .lyr p { margin:0; padding:10px 2px; font-size:27px; line-height:1.22; font-weight:700; letter-spacing:-.3px; color:rgba(255,255,255,.32); filter:blur(1.6px); transform-origin:left center; transform:scale(.96); transition:color .35s, filter .35s, transform .45s cubic-bezier(.2,.9,.25,1); cursor:default; }
+  .lyr p.near { filter:blur(.8px); color:rgba(255,255,255,.42); }
+  .lyr p.on { color:#fff; filter:none; transform:scale(1); }
+  .lyr p.plain { filter:none; color:rgba(255,255,255,.85); font-size:22px; transform:none; }
+  .lyr .msg { color:var(--fg2); font-size:17px; font-weight:500; text-align:center; padding-top:40%; filter:none; }
+  .live.lyrics .art { display:none; }
+  .live:not(.lyrics) .lyr { display:none; }
+  .icon.on { color:#fff; background:rgba(255,255,255,.16); }
   .chip { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--fg2); background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-radius:999px; padding:8px 13px; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--warn); }
   .dot.ok { background:var(--ok); }
@@ -90,8 +106,8 @@
   .icon .n { position:absolute; top:4px; right:2px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--accent); color:#fff; font-size:11px; font-weight:700; line-height:18px; }
   .scrim { position:fixed; inset:0; z-index:6; background:rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .3s; }
   .scrim.on { opacity:1; pointer-events:auto; }
-  .sheet { position:fixed; z-index:7; left:0; right:0; bottom:0; max-width:520px; margin:0 auto; max-height:86vh; display:flex; flex-direction:column;
-           background:rgba(28,28,30,.82); backdrop-filter:blur(40px) saturate(1.6); -webkit-backdrop-filter:blur(40px) saturate(1.6);
+  .sheet { --tint:28,28,30; position:fixed; z-index:7; left:0; right:0; bottom:0; max-width:520px; margin:0 auto; max-height:86vh; display:flex; flex-direction:column;
+           background:rgba(var(--tint),.78); backdrop-filter:blur(40px) saturate(1.6); -webkit-backdrop-filter:blur(40px) saturate(1.6);
            border-radius:22px 22px 0 0; padding:10px 18px max(18px,env(safe-area-inset-bottom)); transform:translateY(105%); transition:transform .38s cubic-bezier(.2,.9,.25,1); }
   .sheet.on { transform:translateY(0); }
   .grab { width:38px; height:5px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 14px; }
@@ -138,7 +154,7 @@
 <body>
 <div class="bg idle" id="bg"><i class="a" id="bga"></i><i class="b" id="bgb"></i></div>
 <div class="wrap">
-  <div class="top"><div class="brand"><img src="icon-180.png" alt="">A. Music</div><span class="pill" id="pill" hidden></span></div>
+  <div class="top"><div class="brand"><img src="icon-180.png" alt="">A. Music</div><div style="display:flex;align-items:center;gap:4px"><span class="pill" id="pill" hidden></span><button class="icon" id="infoBtn" aria-label="About" style="width:40px;height:40px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v6M12 7.5v.01" stroke-linecap="round"/></svg></button></div></div>
 
   <section id="join" class="hero">
     <img class="glyph" src="icon-512.png" alt="">
@@ -152,19 +168,20 @@
     </div>
   </section>
 
-  <section id="live" hidden>
+  <section id="live" class="live" hidden>
     <div class="art paused" id="art"><div class="ph" id="ph"><img src="glyph.svg" alt=""></div><button class="tap" id="tap" hidden><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>Tap for sound</button></div>
+    <div class="lyr" id="lyr"><div class="pad"></div><div id="lyl"></div><div class="pad"></div></div>
     <div class="meta"><div class="title" id="ti">Waiting for the host…</div><div class="artist" id="ar">&nbsp;</div></div>
     <div class="bar"><i id="pr"></i></div>
-    <div class="times"><span id="t0">0:00</span><span id="t1">0:00</span></div>
+    <div class="times"><span id="t0">0:00</span><span class="badge" id="badge" title=""><i></i>Listening together</span><span id="t1">0:00</span></div>
     <div class="controls">
       <button class="ctl" id="nope" aria-label="Not for me"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <button class="ctl" id="heart" aria-label="Love it"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.2h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"/></svg></button>
     </div>
-    <div class="status"><div class="chip"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div></div>
+    <div class="status" id="status">Connecting…</div>
     <div class="bottom">
-      <button class="icon" id="infoBtn" aria-label="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v6M12 7.5v.01" stroke-linecap="round"/></svg></button>
-      <button class="leave" id="leave" style="margin:0">Leave session</button>
+      <button class="icon" id="lyBtn" aria-label="Lyrics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5" stroke-linecap="round"/></svg></button>
+      <button class="leave" id="leave" style="margin:0">Leave</button>
       <button class="icon" id="qBtn" aria-label="Up next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h13M4 12h13M4 18h9"/><path d="M17 15.5v5l4-2.5z" fill="currentColor" stroke="none"/></svg><span class="n" id="qn" hidden></span></button>
     </div>
   </section>
@@ -207,6 +224,10 @@
       <li>On iPhone the sound stops when the screen locks.</li>
       <li>Songs come from YouTube and SoundCloud. A few YouTube songs can't play outside YouTube; Bandcamp songs play on the host's phone only.</li>
     </ul>
+    <h3>Keep listening with the screen off (iPhone)</h3>
+    <p>Use this page in a <b>Safari tab</b> (not the Home Screen version). When you leave the page or lock the phone the music pauses: tap <b>▶ Play</b> in Control Center or on the Lock Screen and it carries on, back in step with the host.</p>
+    <h3>No ads</h3>
+    <p>This page can't remove YouTube's ads by itself. If one plays, the page holds the sync and catches up after it. For no ads at all, open this page in the <b>DuckDuckGo</b> or <b>Brave</b> browser, or use an ad blocker such as AdGuard (iPhone) or uBlock Origin (computer).</p>
     <h3>Credits</h3>
     <p><b>Made by 7SN XOB</b> · <span style="color:var(--fg)">@x1ob</span> on Instagram.<br>A. Music for Android and this page are part of the same project.</p>
     <p style="margin-top:18px;color:var(--fg3)">A. Music · Listening together · protocol 1</p>
@@ -284,7 +305,7 @@ function checkSound() {
   $('tap').hidden = !curId || TG.kindOf(curId) === 'bc' || !muted;
 }
 window.onYouTubeIframeAPIReady = () => {
-  ytp = new YT.Player('yt', { width: 200, height: 200, playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
+  ytp = new YT.Player('yt', { host: 'https://www.youtube-nocookie.com', width: 200, height: 200, playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
     events: { onReady: () => { ytReady = true; }, onStateChange: () => checkSound(),
               onError: e => { toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); } } });
 };
@@ -313,17 +334,20 @@ function draw() {
   const pos = song.id ? s.exp : 0;
   $('pr').style.width = song.dur ? Math.min(100, pos / song.dur * 100) + '%' : '0';
   $('t0').textContent = fmt(pos); $('t1').textContent = song.dur ? '-' + fmt(song.dur - pos) : '0:00';
-  let txt, ok = false;
+  let txt = '', ok = false;
   if (!anyUp) txt = 'Connecting…';
   else if (!s.host) txt = 'Looking for the host…';
-  else if (!song.id) txt = 'With the host';
-  else if (!song.playing) txt = 'Paused by the host';
-  else if (Math.abs(s.drift) < 1500) { txt = 'In step with the host'; ok = true; }
+  else if (!song.id) { txt = 'With the host'; ok = true; }
+  else if (TG.kindOf(song.id) === 'bc') txt = 'Bandcamp song – playing on the host’s phone';
+  else if (s.ad) txt = 'Ad playing – catching up after';
+  else if (!song.playing) { txt = 'Paused by the host'; ok = true; }
+  else if (Math.abs(s.drift) < 1500) ok = true;
   else txt = 'Catching up…';
-  $('status').textContent = txt; $('dot').classList.toggle('ok', ok);
-  const qn = TG.queue().length; $('qn').hidden = !qn; $('qn').textContent = qn;
+  $('badge').classList.toggle('ok', ok); $('badge').title = ok ? 'In step with the host' : txt;
+  $('status').textContent = txt;
+  lyricsTick(song, pos);
   document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
-  if ('mediaSession' in navigator && song.id) navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.thumb, sizes: '512x512' }] });
+  session(song);
 }
 function burst(e) { const b = document.createElement('div'); b.className = 'float'; b.textContent = e; b.style.left = (20 + Math.random() * 60) + '%'; b.style.bottom = '120px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1700); }
 TG.onReaction = k => burst(k === 'heart' ? '❤️' : '✕');
@@ -499,6 +523,79 @@ $('sr').onclick = e => {
 $('addNext').onclick = () => addLink(true);
 $('addLast').onclick = () => addLink(false);
 $('link').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (isLink($('link').value)) addLink(false); else { clearTimeout(sTimer); runSearch(); } } });
+
+// ---- artwork tint (the sheets take the cover's colour, as the app's sheets do)
+let tintFor = '';
+function tint(url) {
+  if (!url || url === tintFor) return; tintFor = url;
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 8; const x = c.getContext('2d'); x.drawImage(img, 0, 0, 8, 8);
+      const d = x.getImageData(0, 0, 8, 8).data; let r = 0, g = 0, b = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+      const n = d.length / 4, k = 0.42;                      // darkened, so white text stays easy to read
+      const v = [r / n * k, g / n * k, b / n * k].map(Math.round).join(',');
+      document.querySelectorAll('.sheet').forEach(e => e.style.setProperty('--tint', v));
+      document.querySelector('meta[name=theme-color]').content = 'rgb(' + v + ')';
+    } catch (e) {}
+  };
+  img.src = url;
+}
+
+// ---- lyrics (LRCLIB, as the app): synced lines follow the host's position
+let lyOn = false, lyFor = '', lyLines = [], lyPlain = false, lyAt = -1;
+function lyricsShow(on) { lyOn = on; $('live').classList.toggle('lyrics', on); $('lyBtn').classList.toggle('on', on); lyAt = -1; if (on) lyricsLoad(TG.state().song); }
+$('lyBtn').onclick = () => lyricsShow(!lyOn);
+setInterval(() => { if (lyOn) { const st = TG.state(); if (st.on) lyricsTick(st.song, st.exp); } }, 150);
+function parseLrc(t) {
+  const out = [];
+  t.split(/\r?\n/).forEach(l => { const m = [...l.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)]; const txt = l.replace(/\[[^\]]*\]/g, '').trim(); m.forEach(x => out.push({ t: (+x[1] * 60 + +x[2]) * 1000, s: txt })); });
+  return out.sort((a, b) => a.t - b.t).filter((x, i, a) => x.s || (a[i + 1] && a[i + 1].t - x.t > 4000));
+}
+async function lyricsLoad(song) {
+  if (!song.id || song.id === lyFor) return; lyFor = song.id; lyLines = []; lyPlain = false; lyAt = -1;
+  $('lyl').innerHTML = '<p class="msg">Finding lyrics…</p>';
+  const clean = t => String(t || '').replace(/\s*[([](feat|ft|with|prod|official|lyric|audio|video|visuali[sz]er|explicit|clean|remaster)[^)\]]*[)\]]/gi, '').trim();
+  const ti = clean(song.title), ar = String(song.artist || '').split(/,|&| x | feat\.? /i)[0].trim();
+  let j = null;
+  try {
+    const q = 'track_name=' + encodeURIComponent(ti) + '&artist_name=' + encodeURIComponent(ar) + (song.dur ? '&duration=' + Math.round(song.dur / 1000) : '');
+    let r = await fetch('https://lrclib.net/api/get?' + q); if (r.ok) j = await r.json();
+    if (!j || (!j.syncedLyrics && !j.plainLyrics)) { r = await fetch('https://lrclib.net/api/search?' + q.replace(/&duration=\d+/, '')); const a = r.ok ? await r.json() : []; j = (a || []).find(x => x.syncedLyrics) || (a || [])[0] || null; }
+  } catch (e) { j = null; }
+  if (song.id !== lyFor) return;
+  if (j && j.syncedLyrics) lyLines = parseLrc(j.syncedLyrics);
+  else if (j && j.plainLyrics) { lyPlain = true; lyLines = j.plainLyrics.split(/\r?\n/).map(s => ({ t: 0, s })); }
+  if (!lyLines.length) { $('lyl').innerHTML = '<p class="msg">No lyrics for this song</p>'; return; }
+  $('lyl').innerHTML = lyLines.map(x => '<p' + (lyPlain ? ' class="plain"' : '') + '>' + (esc(x.s) || '♪') + '</p>').join('');
+}
+function lyricsTick(song, pos) {
+  if (!lyOn) return;
+  if (song.id !== lyFor) lyricsLoad(song);
+  if (lyPlain || !lyLines.length) return;
+  let i = -1; for (let k = 0; k < lyLines.length; k++) { if (lyLines[k].t <= pos + 150) i = k; else break; }
+  if (i === lyAt) return; lyAt = i;
+  const ps = $('lyl').children;
+  for (let k = 0; k < ps.length; k++) { ps[k].classList.toggle('on', k === i); ps[k].classList.toggle('near', Math.abs(k - i) === 1); }
+  if (i >= 0 && ps[i]) { const box = $('lyr'); box.scrollTo({ top: ps[i].offsetTop - box.clientHeight * 0.38, behavior: 'smooth' }); }
+}
+
+// ---- lock screen and Control Center (iPhone: leaving the page pauses; ▶ there carries on, back in step)
+let sessFor = '', hinted = false;
+function session(song) {
+  tint(song.id ? song.thumb : '');
+  if (!('mediaSession' in navigator) || !song.id || song.id === sessFor) return; sessFor = song.id;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, album: 'Listening together', artwork: [{ src: song.thumb, sizes: '512x512' }] });
+    navigator.mediaSession.setActionHandler('play', () => { unlock(); player.play(); });
+    navigator.mediaSession.setActionHandler('pause', () => player.pause());
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (TG.state().on && !hinted && /iPhone|iPad|iPod/.test(navigator.userAgent) && TG.state().song.playing && !player.playing()) { hinted = true; toast('Music paused? Next time tap ▶ in Control Center to keep listening'); }
+});
 
 // ---- installable app (works offline for the shell, always fetches the newest page when online)
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
