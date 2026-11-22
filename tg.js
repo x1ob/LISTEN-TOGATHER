@@ -44,7 +44,7 @@ const TG = (() => {
   }
 
   const st = { on: false, topic: '', key: null, seq: 0, term: 0, hostId: null, hostAt: 0, welcomed: false, up: [false, false], src: [],
-    seen: [], lastSeq: new Map(), lags: new Map(), lastOpenAt: 0, rate: 0, rateAt: 0, lastHi: 0, lastPing: 0, startedAt: 0 };
+    seen: [], lastSeq: new Map(), hostCap: 0, qRaw: null, qList: [], rQh: 0, rQhSet: false, hostQh: 0, hostQhSet: false, qMis: 0, lastQr: 0, pend: [], lags: new Map(), lastOpenAt: 0, rate: 0, rateAt: 0, lastHi: 0, lastPing: 0, startedAt: 0 };
   let ui = () => {}, player = null;
 
   function msg(k, extra) { return Object.assign({ k, f: DEV, n: ++st.seq, w: Date.now(), v: PROTO, t: st.term }, extra || {}); }
@@ -85,8 +85,13 @@ const TG = (() => {
     if (k === 'wl' || k === 'st') {
       if (!fromHost(m, f)) return;
       st.hostAt = now;
-      if (k === 'wl') st.welcomed = true; else remote(m, age);
+      if (k === 'wl') { st.welcomed = true; st.hostCap = m.cp || 0; }
+      else { if ('qh' in m) { st.hostQh = m.qh | 0; st.hostQhSet = true; } remote(m, age); }
       ui();
+    } else if (k === 'qs') {
+      if (f === st.hostId) mirror(String(m.q || ''));
+    } else if (k === 'qa') {
+      if (f === st.hostId) { const qi = String(m.qi || ''); st.pend = st.pend.filter(p => p.qi !== qi); }
     } else if (k === 'sw') {
       // the host handed the music to someone else: that phone is the host now
       if (f === st.hostId && (m.t || 0) >= st.term && m.to && m.to.length <= 40) { st.term = m.t || 0; st.hostId = m.to === DEV ? null : m.to; }
@@ -156,6 +161,44 @@ const TG = (() => {
       g.corrections++; jump(); g.seekCool = now + 20000;
     }
   }
+  // ---- the host's up-next list (Together.hostQueue / mirror), song requests (sendQueued) and edits (guestEdit)
+  const FS = '\u001f', RS = '\u001e';
+  const jhash = str => { let h = 0; for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; return h; };   // Java String.hashCode
+  function mirror(q) {
+    q = q.slice(0, 4000); st.qRaw = q; st.rQh = jhash(q); st.rQhSet = true; st.hostQh = st.rQh; st.hostQhSet = true; st.qMis = 0;
+    st.qList = q ? q.split(RS).map(one => { const f = one.split(FS); return { id: f[0], ti: f[1] || '', ar: f[2] || '', du: +f[3] || 0, th: (f[4] || '').startsWith('https://') ? f[4] : 'https://i.ytimg.com/vi/' + f[0] + '/hqdefault.jpg' }; }).filter(x => validId(x.id)) : [];
+    TG.onQueue && TG.onQueue(st.qList.slice());
+  }
+  function checkQueueHash(now) {
+    if (st.hostCap < CAP || !st.hostQhSet || !st.hostId) return;
+    const ok = st.rQhSet ? st.rQh === st.hostQh : st.hostQh === 0;
+    if (ok) { st.qMis = 0; return; }
+    if (!st.qMis) { st.qMis = now; return; }
+    if (now - st.qMis < 3500 || now - st.lastQr < 6000) return;
+    st.lastQr = now; send(msg('qr'));
+  }
+  function request(song, next) {
+    if (!st.on) return false;
+    const qi = rnd(8), body = { nx: next ? 1 : 0, id: song.id, ti: clip(song.ti, 200), ar: clip(song.ar, 200), al: clip(song.al, 200), th: clip(song.th, 600), du: song.du || 0, qi };
+    st.pend.push({ qi, body, at: performance.now(), tries: 1 }); if (st.pend.length > 12) st.pend.shift();
+    send(msg('q', body)); return !!st.hostId;
+  }
+  function resend(now) {
+    for (let i = st.pend.length - 1; i >= 0; i--) {
+      const p = st.pend[i];
+      if (st.hostCap < CAP) { st.pend.splice(i, 1); continue; }          // an older host doesn't confirm: sent once
+      if (now - p.at < 3200) continue;
+      if (p.tries >= 5) { st.pend.splice(i, 1); say('The host didn\u2019t get \u201C' + clip(p.body.ti, 50) + '\u201D \u2013 try again'); continue; }
+      p.tries++; p.at = now; send(msg('q', p.body));
+    }
+  }
+  function edit(ids) {
+    if (!st.on || !st.hostId) return 'nohost';
+    if (st.hostCap < CAP) return 'old';
+    send(msg('qe', { q: ids.join(RS), b: st.rQh }));
+    st.qList = ids.map(id => st.qList.find(x => x.id === id)).filter(Boolean); TG.onQueue && TG.onQueue(st.qList.slice());
+    return 'ok';
+  }
   let tickId = 0, sayFn = () => {};
   function say(s) { sayFn(s); }
   function tick() {
@@ -164,6 +207,7 @@ const TG = (() => {
     if (now - st.startedAt > 4 * 3600 * 1000) { say('Listening together timed out'); leave(true); return; }
     enforce();
     if (!st.welcomed && now - st.lastHi > (now - st.startedAt < 60000 ? 6000 : 20000)) hi();
+    resend(now); checkQueueHash(now);
     if (st.hostId && now - st.lastPing > 20000) { st.lastPing = now; send(msg('pg', { ok: player && player.id() === r.id ? 1 : 0, pl: player && player.playing() ? 1 : 0 })); }
     if (!st.hostId && now - st.startedAt > 20000 && !st.warned) { st.warned = true; say(st.up.some(x => x) ? 'No host found yet – check the code, and that your friend has the session open' : "Can't reach the connection – check your internet"); }
     ui();
@@ -173,7 +217,7 @@ const TG = (() => {
     player = p; ui = onUi; sayFn = onSay;
     const d = await derive(code);
     Object.assign(st, { on: true, topic: d.topic, key: d.key, hostId: null, welcomed: false, term: 0, startedAt: performance.now(), warned: false });
-    st.lastSeq.clear(); st.lags.clear(); st.seen = [];
+    st.lastSeq.clear(); st.lags.clear(); st.seen = []; st.pend = []; st.qList = []; st.qRaw = null; st.rQhSet = false; st.hostQhSet = false; st.hostCap = 0;
     for (let i = 0; i < RELAYS.length; i++) listen(i);
     tickId = setInterval(tick, 500);
   }
@@ -184,7 +228,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  return { join, leave, react, clean, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
+  return { join, leave, react, clean, request, edit, validId, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;

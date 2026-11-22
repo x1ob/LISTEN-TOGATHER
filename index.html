@@ -82,6 +82,48 @@
   [hidden] { display:none !important; }
   .float { position:fixed; z-index:4; font-size:38px; pointer-events:none; animation:up 1.7s ease-out forwards; }
   @keyframes up { from { opacity:1; transform:translateY(0) scale(.7); } to { opacity:0; transform:translateY(-260px) scale(1.35); } }
+  .bottom { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+  .icon { width:48px; height:48px; border:0; border-radius:50%; background:transparent; color:var(--fg2); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+  .icon:active { background:rgba(255,255,255,.12); }
+  .icon svg { width:26px; height:26px; }
+  .icon .n { position:absolute; top:4px; right:2px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--accent); color:#fff; font-size:11px; font-weight:700; line-height:18px; }
+  .scrim { position:fixed; inset:0; z-index:6; background:rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .3s; }
+  .scrim.on { opacity:1; pointer-events:auto; }
+  .sheet { position:fixed; z-index:7; left:0; right:0; bottom:0; max-width:520px; margin:0 auto; max-height:86vh; display:flex; flex-direction:column;
+           background:rgba(28,28,30,.82); backdrop-filter:blur(40px) saturate(1.6); -webkit-backdrop-filter:blur(40px) saturate(1.6);
+           border-radius:22px 22px 0 0; padding:10px 18px max(18px,env(safe-area-inset-bottom)); transform:translateY(105%); transition:transform .38s cubic-bezier(.2,.9,.25,1); }
+  .sheet.on { transform:translateY(0); }
+  .grab { width:38px; height:5px; border-radius:3px; background:rgba(255,255,255,.3); margin:0 auto 14px; }
+  .sheet h2 { font-size:22px; margin:0 0 12px; letter-spacing:-.3px; display:flex; justify-content:space-between; align-items:center; }
+  .sheet h2 button { border:0; background:var(--glass); color:var(--fg); width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer; }
+  .linkbar { display:flex; gap:8px; }
+  .linkbar input { flex:1; min-width:0; background:rgba(0,0,0,.35); border:0; border-radius:12px; color:#fff; font:16px inherit; font-family:inherit; padding:13px 14px; outline:none; }
+  .linkbar input:focus { box-shadow:0 0 0 2px var(--accent); }
+  .two { display:flex; gap:8px; margin-top:8px; }
+  .two button { flex:1; border:0; border-radius:12px; padding:12px 8px; font-weight:600; font-size:15px; font-family:inherit; cursor:pointer; color:#fff; background:var(--accent); display:flex; align-items:center; justify-content:center; gap:6px; }
+  .two button.alt { background:var(--glass); }
+  .two button:disabled { opacity:.45; }
+  .small { color:var(--fg3); font-size:12px; margin:8px 2px 0; }
+  .list { overflow-y:auto; margin:16px -6px 0; padding:0 6px; -webkit-overflow-scrolling:touch; }
+  .sec { color:var(--fg2); font-size:13px; text-transform:uppercase; letter-spacing:.7px; margin:6px 2px 8px; }
+  .rowi { display:flex; align-items:center; gap:12px; padding:8px 2px; border-bottom:1px solid rgba(255,255,255,.07); }
+  .rowi .th { width:46px; height:46px; border-radius:7px; flex:none; background:rgba(255,255,255,.08) center/cover; }
+  .rowi .th.yt { background-size:auto 133%; }
+  .rowi .tx { flex:1; min-width:0; }
+  .rowi .t1 { font-size:16px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rowi .t2 { font-size:14px; color:var(--fg2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rowi .ac { display:flex; gap:2px; }
+  .rowi .ac button { width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--fg2); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .rowi .ac button:active { background:rgba(255,255,255,.12); }
+  .rowi .ac svg { width:20px; height:20px; }
+  .rowi.now .t1 { color:var(--accent); }
+  .empty { color:var(--fg2); text-align:center; padding:26px 0; font-size:15px; }
+  .info p { color:var(--fg2); margin:0 0 12px; font-size:15px; }
+  .info b { color:var(--fg); font-weight:600; }
+  .info h3 { font-size:15px; margin:18px 0 6px; }
+  .info ul { color:var(--fg2); font-size:15px; margin:0 0 12px; padding-left:18px; }
+  .info li { margin:4px 0; }
+  .info .list { margin-top:0; }
   @media (prefers-reduced-motion: reduce) { .bg i, .bg.idle::before { animation:none; } }
 </style>
 </head>
@@ -112,10 +154,53 @@
       <button class="ctl" id="heart" aria-label="Love it"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.2h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"/></svg></button>
     </div>
     <div class="status"><div class="chip"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div></div>
-    <button class="leave" id="leave">Leave session</button>
+    <div class="bottom">
+      <button class="icon" id="infoBtn" aria-label="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v6M12 7.5v.01" stroke-linecap="round"/></svg></button>
+      <button class="leave" id="leave" style="margin:0">Leave session</button>
+      <button class="icon" id="qBtn" aria-label="Up next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h13M4 12h13M4 18h9"/><path d="M17 15.5v5l4-2.5z" fill="currentColor" stroke="none"/></svg><span class="n" id="qn" hidden></span></button>
+    </div>
     <div class="yt"><small>Playing from YouTube</small><div class="ytbox"><div id="yt"></div></div></div>
   </section>
   <div class="foot">Listening together · works with A. Music on Android</div>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="qs" role="dialog" aria-label="Up next">
+  <div class="grab"></div>
+  <h2>Up next <button id="qx" aria-label="Close">✕</button></h2>
+  <div class="linkbar"><input id="link" type="url" inputmode="url" placeholder="Paste a song link" autocomplete="off" spellcheck="false"></div>
+  <div class="two"><button id="addNext"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>Play next</button><button class="alt" id="addLast">Add to queue</button></div>
+  <div class="small">YouTube, YouTube Music, Spotify, Apple Music, Deezer, Tidal, SoundCloud and more. The song goes to the host's queue.</div>
+  <div class="list" id="ql"></div>
+</div>
+<div class="sheet info" id="is" role="dialog" aria-label="About">
+  <div class="grab"></div>
+  <h2>About <button id="ix" aria-label="Close">✕</button></h2>
+  <div class="list">
+    <p><b>A. Music Together</b> lets you listen with a friend who is hosting a session in A. Music on Android. You hear the same song at the same moment, on any phone, tablet or computer.</p>
+    <h3>How to use it</h3>
+    <ul>
+      <li>Your friend opens <b>Listening together</b> in A. Music and starts a session.</li>
+      <li>Type the code from their screen here and tap <b>Join</b>.</li>
+      <li>On iPhone, tap <b>Tap for sound</b> once: Safari only plays sound after a tap.</li>
+      <li>Open <b>Up next</b> (bottom right) to see what's coming, paste a link to add a song, or move and remove songs.</li>
+      <li>Tap ♥ or ✕ to tell the host what you think of a song.</li>
+    </ul>
+    <h3>Install it</h3>
+    <ul>
+      <li><b>iPhone / iPad:</b> Share → Add to Home Screen.</li>
+      <li><b>Android, Windows, Mac:</b> the install icon in the address bar, or the browser menu → Install app.</li>
+    </ul>
+    <h3>Private by design</h3>
+    <p>No account and nothing to sign up for. The session code is the key: it names a private channel and locks every message (AES-256). Only tiny messages pass between you (song, play or pause, position), through two public relays. The music itself comes from YouTube.</p>
+    <h3>Good to know</h3>
+    <ul>
+      <li>The host controls play, pause and skipping. You can add, move and remove songs in Up next.</li>
+      <li>On iPhone the sound stops when the screen locks.</li>
+      <li>A few songs can't play outside YouTube, and SoundCloud or Bandcamp songs play in the app only.</li>
+      <li>YouTube's player has to stay on the page while it plays.</li>
+    </ul>
+    <p style="margin-top:18px;color:var(--fg3)">A. Music · Listening together · protocol 1</p>
+  </div>
 </div>
 <div id="toast"></div>
 <script src="tg.js"></script>
@@ -186,6 +271,7 @@ function draw() {
   else if (Math.abs(s.drift) < 1500) { txt = 'In step with the host'; ok = true; }
   else txt = 'Catching up…';
   $('status').textContent = txt; $('dot').classList.toggle('ok', ok);
+  const qn = TG.queue().length; $('qn').hidden = !qn; $('qn').textContent = qn;
   document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
   if ('mediaSession' in navigator && song.id) navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.thumb, sizes: '512x512' }] });
 }
@@ -211,6 +297,97 @@ $('heart').onclick = () => { TG.react('heart'); burst('❤️'); };
 
 $('nope').onclick = () => { TG.react('nope'); burst('✕'); };
 window.addEventListener('pagehide', () => TG.leave(true));
+
+// ---- sheets
+function sheet(id, on) { $(id).classList.toggle('on', on); $('scrim').classList.toggle('on', $('qs').classList.contains('on') || $('is').classList.contains('on')); }
+$('qBtn').onclick = () => { drawQueue(); sheet('qs', true); };
+$('infoBtn').onclick = () => sheet('is', true);
+$('qx').onclick = () => sheet('qs', false);
+$('ix').onclick = () => sheet('is', false);
+$('scrim').onclick = () => { sheet('qs', false); sheet('is', false); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { sheet('qs', false); sheet('is', false); } });
+
+// ---- up next: the host's list; move to the top or remove (the host does the same)
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+function row(x, now) {
+  const yt = /i\.ytimg\.com/.test(x.th);
+  return '<div class="rowi' + (now ? ' now' : '') + '"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(x.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(x.ti || 'Unknown song') + '</div><div class="t2">' + esc(x.ar || '') + '</div></div>' +
+    (now ? '' : '<div class="ac"><button data-a="up" data-id="' + esc(x.id) + '" aria-label="Play next">' + ICON_UP + '</button><button data-a="rm" data-id="' + esc(x.id) + '" aria-label="Remove">' + ICON_X + '</button></div>') + '</div>';
+}
+function drawQueue() {
+  const q = TG.queue(), s = TG.state(), song = s.song;
+  $('qn').hidden = !q.length; $('qn').textContent = q.length;
+  let h = '';
+  if (song.id) h += '<div class="sec">Now playing</div>' + row({ id: song.id, ti: song.title, ar: song.artist, th: song.thumb }, true);
+  h += '<div class="sec" style="margin-top:16px">Playing next</div>';
+  h += q.length ? q.map(x => row(x, false)).join('') : '<div class="empty">Nothing queued yet. Paste a link above to add a song.</div>';
+  $('ql').innerHTML = h;
+}
+TG.onQueue = () => drawQueue();
+$('ql').onclick = e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const ids = TG.queue().map(x => x.id), id = b.dataset.id, i = ids.indexOf(id); if (i < 0) return;
+  ids.splice(i, 1); if (b.dataset.a === 'up') ids.unshift(id);
+  const r = TG.edit(ids);
+  toast(r === 'ok' ? (b.dataset.a === 'up' ? 'Moved to play next' : 'Removed from Up next') : r === 'old' ? 'Your friend needs to update A. Music to change the queue' : 'Not connected to the host right now');
+};
+
+// ---- links: YouTube directly; other services through song.link
+function ytId(u) {
+  try {
+    const url = new URL(u.trim()), h = url.hostname.replace(/^www\.|^m\./, '');
+    if (h === 'youtu.be') return url.pathname.slice(1, 12);
+    if (/(^|\.)youtube\.com$/.test(h)) {
+      if (url.searchParams.get('v')) return url.searchParams.get('v');
+      const m = url.pathname.match(/^\/(?:shorts|embed|live|v)\/([A-Za-z0-9_-]{11})/); if (m) return m[1];
+    }
+  } catch (e) {}
+  return null;
+}
+async function fromYouTube(id) {
+  let ti = '', ar = '';
+  try {
+    const o = await (await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id))).json();
+    ti = o.title || ''; ar = (o.author_name || '').replace(/ - Topic$/, '');
+    const m = ti.match(/^(.+?) - (.+)$/); if (m && (!ar || /VEVO$/i.test(ar) || ar === m[1])) { ar = m[1].trim(); ti = m[2].trim(); }
+  } catch (e) {}
+  return { id, ti: ti || 'YouTube song', ar, th: 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg', du: 0 };
+}
+async function fromSongLink(u) {
+  const r = await fetch('https://api.song.link/v1-alpha.1/links?url=' + encodeURIComponent(u));
+  if (!r.ok) throw new Error('songlink ' + r.status);
+  const j = await r.json(), p = j.linksByPlatform || {};
+  const best = p.youtubeMusic || p.youtube; if (!best) throw new Error('no youtube');
+  const id = ytId(best.url); if (!id) throw new Error('no id');
+  const e = (j.entitiesByUniqueId || {})[j.entityUniqueId] || (j.entitiesByUniqueId || {})[best.entityUniqueId] || {};
+  const song = await fromYouTube(id);
+  if (e.title) { song.ti = e.title; song.ar = e.artistName || song.ar; }
+  if (e.thumbnailUrl && e.thumbnailUrl.startsWith('https://')) song.th = e.thumbnailUrl;
+  return song;
+}
+let adding = false;
+async function addLink(next) {
+  const u = $('link').value.trim();
+  if (!u) { $('link').focus(); toast('Paste a song link first'); return; }
+  if (!/^https?:\/\//i.test(u)) { toast('That doesn\u2019t look like a link'); return; }
+  if (/[?&]list=|\/playlist|\/album\/|\/artist\//i.test(u) && !ytId(u)) { toast('Songs only for now \u2013 open the song and share its link'); return; }
+  if (adding) return; adding = true; $('addNext').disabled = $('addLast').disabled = true;
+  try {
+    const id = ytId(u), song = id ? await fromYouTube(id) : await fromSongLink(u);
+    const ok = TG.request(song, next);
+    $('link').value = '';
+    toast(ok ? (next ? '\u201C' + song.ti + '\u201D plays next' : '\u201C' + song.ti + '\u201D added to the queue') : 'Not connected to the host right now');
+  } catch (e) { toast('Couldn\u2019t find that song on YouTube'); }
+  finally { adding = false; $('addNext').disabled = $('addLast').disabled = false; }
+}
+$('addNext').onclick = () => addLink(true);
+$('addLast').onclick = () => addLink(false);
+$('link').addEventListener('keydown', e => { if (e.key === 'Enter') addLink(false); });
+
+// ---- installable app (works offline for the shell, always fetches the newest page when online)
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
