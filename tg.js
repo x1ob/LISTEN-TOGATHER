@@ -117,7 +117,7 @@ const TG = (() => {
 
   // ---- following the host (Together.remote / enforce, the same rules)
   const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
-  const g = { ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
+  const g = { stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
   // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
   const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64url = id => { try { return decodeURIComponent(escape(atob(id.replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { return ''; } };
@@ -145,7 +145,7 @@ const TG = (() => {
     r.pos = Math.max(0, Math.min(43200000, (m.po || 0) + (r.playing ? delay : 0)));
     r.at = performance.now(); r.isNew = true;
     if (m.sk === 1 && !isNew) r.seek = true;
-    if (isNew) { g.loadCool = 0; g.loads = 0; r.seek = false; g.bigTries = 0; }
+    if (isNew) { g.loadCool = 0; g.loads = 0; r.seek = false; g.bigTries = 0; g.retries = 0; g.stuckSince = 0; }
     if (age < 4000) enforce();
   }
   function expected(now) { let e = r.pos + (r.playing ? now - r.at : 0); if (r.dur > 3000 && e > r.dur - 400) e = r.dur - 400; return e; }
@@ -156,8 +156,16 @@ const TG = (() => {
       if (now < g.loadCool || g.loads >= 3) return;
       player.load(r.id, exp / 1000, r.playing); g.loads++; g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; r.isNew = false; return;
     }
-    g.loads = 0;
     const pl = player.playing();
+    // loaded but the song never starts (blocked or stuck while buffering): load it again, up to 3 times a song
+    if (r.playing && !pl && !g.ad) {
+      if (!g.stuckSince) g.stuckSince = now;
+      else if (now - g.stuckSince > 7000 && now >= g.loadCool && g.retries < 3) {
+        g.retries++; g.stuckSince = 0; say('Starting the song again\u2026');
+        player.load(r.id, exp / 1000, true); g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; return;
+      }
+    } else g.stuckSince = 0;
+    g.loads = 0;
     if (r.playing && !pl) { g.steadySince = 0; if (now >= g.loadCool) player.play(); }
     else if (!r.playing && pl) { g.steadySince = 0; player.pause(); }
     if (pl && !g.steadySince) g.steadySince = now;
@@ -238,7 +246,11 @@ const TG = (() => {
     enforce();
     if (!st.welcomed && now - st.lastHi > (now - st.startedAt < 60000 ? 6000 : 20000)) hi();
     resend(now); checkQueueHash(now);
-    if (st.hostId && now - st.lastPing > 20000) { st.lastPing = now; send(msg('pg', { ok: player && player.id() === r.id ? 1 : 0, pl: player && player.playing() ? 1 : 0 })); }
+    // tell the host how we are doing: every 20 s, and at once (at most every 1.5 s) when it changes, so its dot is honest
+    if (st.hostId) {
+      const ok = player && r.id && player.id() === r.id && player.time() >= 0 ? 1 : 0, pl = player && player.playing() ? 1 : 0, pst = ok * 2 + pl;
+      if (now - st.lastPing > 20000 || (pst !== st.lastPst && now - st.lastPing > 1500)) { st.lastPing = now; st.lastPst = pst; send(msg('pg', { ok, pl })); }
+    }
     if (!st.hostId && now - st.startedAt > 20000 && !st.warned) { st.warned = true; say(st.up.some(x => x) ? 'No host found yet – check the code, and that your friend has the session open' : "Can't reach the connection – check your internet"); }
     ui();
   }
