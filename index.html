@@ -10,74 +10,109 @@
 <meta name="apple-mobile-web-app-title" content="Together">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <title>A. Music Together</title>
 <style>
-  :root { --bg:#000; --card:#1c1c1e; --card2:#2c2c2e; --fg:#fff; --fg2:rgba(255,255,255,.6); --line:rgba(255,255,255,.12); --accent:#0A84FF; --warn:#FF9F0A; --ok:#30D158; }
+  :root { --fg:#fff; --fg2:rgba(255,255,255,.62); --fg3:rgba(255,255,255,.35); --glass:rgba(255,255,255,.12); --accent:#0A84FF; --ok:#30D158; --warn:#FF9F0A; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Inter,sans-serif; }
-  body { min-height:100vh; padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
-  .wrap { max-width:520px; margin:0 auto; }
-  h1 { font-size:34px; font-weight:700; letter-spacing:-.5px; margin:28px 0 4px; }
-  .sub { color:var(--fg2); margin:0 0 24px; }
-  .card { background:var(--card); border-radius:16px; padding:18px; }
-  label { display:block; color:var(--fg2); font-size:13px; text-transform:uppercase; letter-spacing:.6px; margin-bottom:10px; }
-  #code { width:100%; font:600 34px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:10px; text-align:center; text-transform:uppercase; background:var(--card2); color:var(--fg); border:0; border-radius:12px; padding:16px 8px; outline:none; }
+  html,body { margin:0; height:100%; background:#000; color:var(--fg); font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Inter,sans-serif; overflow-x:hidden; }
+  /* the player's background: the artwork, heavily blurred, drifting slowly, under a dark shade (as Modern flow) */
+  .bg { position:fixed; inset:0; overflow:hidden; z-index:0; background:#000; }
+  .bg i { position:absolute; left:50%; top:50%; width:150vmax; height:150vmax; margin:-75vmax 0 0 -75vmax; background:center/cover no-repeat; filter:blur(70px) saturate(1.7) brightness(.95); opacity:0; transition:opacity 1.4s ease, background-image 0s; will-change:transform; }
+  .bg i.a { animation:drift1 38s ease-in-out infinite alternate; }
+  .bg i.b { animation:drift2 52s ease-in-out infinite alternate; mix-blend-mode:screen; }
+  .bg.on i.a { opacity:.85; } .bg.on i.b { opacity:.45; }
+  @keyframes drift1 { from { transform:rotate(0) scale(1.05) translate(-4%,-3%); } to { transform:rotate(40deg) scale(1.25) translate(5%,4%); } }
+  @keyframes drift2 { from { transform:rotate(180deg) scale(1.3) translate(6%,2%); } to { transform:rotate(120deg) scale(1.1) translate(-5%,-6%); } }
+  .bg::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.2) 25%,rgba(0,0,0,.35) 55%,rgba(0,0,0,.9) 85%,#000 100%); }
+  .bg.idle::before { content:""; position:absolute; inset:-20%; background:radial-gradient(circle at 30% 25%,rgba(10,132,255,.35),transparent 45%),radial-gradient(circle at 75% 70%,rgba(94,92,230,.3),transparent 50%); animation:drift1 30s ease-in-out infinite alternate; }
+  .wrap { position:relative; z-index:1; max-width:440px; margin:0 auto; min-height:100%; display:flex; flex-direction:column;
+          padding:max(18px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left)); }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:600; font-size:15px; color:var(--fg2); }
+  .brand img { width:28px; height:28px; border-radius:7px; }
+  .pill { font:600 13px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:2px; padding:8px 11px; border-radius:999px; background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--fg); }
+  /* join */
+  .hero { margin:auto 0; padding:36px 0 20px; }
+  .glyph { width:84px; height:84px; border-radius:20px; display:block; margin:0 0 26px; box-shadow:0 14px 40px rgba(0,0,0,.6); }
+  h1 { font-size:34px; font-weight:700; letter-spacing:-.6px; margin:0 0 6px; }
+  .sub { color:var(--fg2); margin:0 0 26px; font-size:17px; }
+  .glass { background:var(--glass); backdrop-filter:blur(30px) saturate(1.4); -webkit-backdrop-filter:blur(30px) saturate(1.4); border-radius:18px; padding:18px; }
+  label { display:block; color:var(--fg2); font-size:12px; text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
+  #code { width:100%; font:600 32px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:10px; text-align:center; text-transform:uppercase; background:rgba(0,0,0,.35); color:var(--fg); border:0; border-radius:12px; padding:16px 8px; outline:none; }
+  #code::placeholder { color:var(--fg3); }
   #code:focus { box-shadow:0 0 0 2px var(--accent); }
-  .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; border:0; border-radius:14px; padding:15px; font-weight:600; font-size:17px; font-family:inherit; line-height:1; color:#fff; background:var(--accent); margin-top:14px; cursor:pointer; }
+  .btn { display:flex; align-items:center; justify-content:center; width:100%; border:0; border-radius:14px; padding:16px; font-weight:600; font-size:17px; font-family:inherit; line-height:1; color:#fff; background:var(--accent); margin-top:14px; cursor:pointer; }
   .btn:active { opacity:.75; }
-  .btn.ghost { background:var(--card2); color:var(--accent); }
   .hint { color:var(--fg2); font-size:14px; margin-top:14px; }
-  .player { position:relative; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#111; }
-  .player iframe, #yt { position:absolute; inset:0; width:100%; height:100%; border:0; }
-  .title { font-size:22px; font-weight:700; margin:16px 0 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .artist { color:var(--fg2); font-size:17px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bar { height:4px; background:var(--line); border-radius:2px; margin:18px 0 6px; overflow:hidden; }
-  .bar i { display:block; height:100%; width:0; background:var(--fg); border-radius:2px; }
-  .times { display:flex; justify-content:space-between; color:var(--fg2); font-size:12px; font-variant-numeric:tabular-nums; }
-  .chip { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--fg2); background:var(--card2); border-radius:999px; padding:7px 12px; margin-top:16px; }
+  /* now playing, laid out like the app's full player */
+  .art { position:relative; width:100%; aspect-ratio:1; margin:26px auto 0; border-radius:12px; overflow:hidden; background:rgba(255,255,255,.08) center/cover no-repeat;
+         box-shadow:0 24px 60px rgba(0,0,0,.55); transform:scale(1); transition:transform .55s cubic-bezier(.2,.9,.25,1.2), box-shadow .55s; }
+  .art.paused { transform:scale(.82); box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .art.yt { background-size:auto 133%; }
+  .art .ph { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  .art .ph img { width:34%; opacity:.5; }
+  .meta { margin-top:30px; min-height:58px; }
+  .title { font-size:22px; font-weight:700; letter-spacing:-.2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .artist { color:var(--fg2); font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar { height:6px; background:rgba(255,255,255,.2); border-radius:3px; margin:20px 0 8px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:3px; }
+  .times { display:flex; justify-content:space-between; color:var(--fg2); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .controls { display:flex; align-items:center; justify-content:space-evenly; margin:26px 0 10px; }
+  .ctl { width:76px; height:76px; border:0; border-radius:50%; background:transparent; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s, background .15s; }
+  .ctl:active { transform:scale(.86); background:rgba(255,255,255,.12); }
+  .ctl svg { width:40px; height:40px; }
+  .status { display:flex; justify-content:center; margin-top:8px; }
+  .chip { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--fg2); background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-radius:999px; padding:8px 13px; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--warn); }
   .dot.ok { background:var(--ok); }
-  .row { display:flex; gap:12px; margin-top:14px; }
-  .round { flex:1; display:flex; align-items:center; justify-content:center; height:56px; border-radius:16px; border:0; background:var(--card2); color:var(--fg); cursor:pointer; }
-  .round:active { transform:scale(.96); }
-  .round svg { width:26px; height:26px; }
-  #toast { position:fixed; left:50%; bottom:max(24px,env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px); background:rgba(44,44,46,.96); color:#fff; padding:12px 16px; border-radius:14px; font-size:15px; max-width:calc(100% - 32px); opacity:0; transition:.25s; pointer-events:none; text-align:center; }
+  .leave { background:none; border:0; color:var(--fg2); font:500 15px inherit; font-family:inherit; margin:18px auto 0; display:block; cursor:pointer; padding:8px 14px; }
+  /* YouTube's player has to stay on screen to play (its rules): kept small, at the bottom */
+  .yt { margin-top:22px; }
+  .yt small { display:block; color:var(--fg3); font-size:12px; margin:0 0 8px 2px; }
+  .ytbox { position:relative; width:100%; aspect-ratio:16/9; min-height:200px; border-radius:12px; overflow:hidden; background:#000; }
+  .ytbox iframe, #yt { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #toast { position:fixed; z-index:5; left:50%; bottom:max(24px,env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px); background:rgba(40,40,42,.92); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:#fff; padding:12px 16px; border-radius:14px; font-size:15px; max-width:calc(100% - 32px); opacity:0; transition:.25s; pointer-events:none; text-align:center; }
   #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
-  .foot { color:var(--fg2); font-size:12px; text-align:center; margin-top:28px; }
+  .foot { color:var(--fg3); font-size:12px; text-align:center; margin-top:auto; padding-top:24px; }
   [hidden] { display:none !important; }
-  .float { position:fixed; font-size:34px; pointer-events:none; animation:up 1.6s ease-out forwards; }
-  @keyframes up { from { opacity:1; transform:translateY(0) scale(.8); } to { opacity:0; transform:translateY(-220px) scale(1.3); } }
+  .float { position:fixed; z-index:4; font-size:38px; pointer-events:none; animation:up 1.7s ease-out forwards; }
+  @keyframes up { from { opacity:1; transform:translateY(0) scale(.7); } to { opacity:0; transform:translateY(-260px) scale(1.35); } }
+  @media (prefers-reduced-motion: reduce) { .bg i, .bg.idle::before { animation:none; } }
 </style>
 </head>
 <body>
+<div class="bg idle" id="bg"><i class="a" id="bga"></i><i class="b" id="bgb"></i></div>
 <div class="wrap">
-  <section id="join">
+  <div class="top"><div class="brand"><img src="icon-180.png" alt="">A. Music</div><span class="pill" id="pill" hidden></span></div>
+
+  <section id="join" class="hero">
+    <img class="glyph" src="icon-512.png" alt="">
     <h1>Listen together</h1>
-    <p class="sub">Join a friend who's hosting in A. Music. You'll hear the same song at the same moment.</p>
-    <div class="card">
+    <p class="sub">Join a friend who's hosting in A. Music and hear the same song at the same moment.</p>
+    <div class="glass">
       <label for="code">Session code</label>
-      <input id="code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="K7MP2Q">
+      <input id="code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="K7MP2Q">
       <button class="btn" id="go">Join</button>
-      <div class="hint">Ask your friend for the code on their Listening together screen.</div>
+      <div class="hint">The code is on your friend's Listening together screen.</div>
     </div>
   </section>
 
   <section id="live" hidden>
-    <h1>Listening together</h1>
-    <div class="player"><div id="yt"></div></div>
-    <div class="title" id="ti">Waiting for the host…</div>
-    <div class="artist" id="ar">&nbsp;</div>
+    <div class="art paused" id="art"><div class="ph" id="ph"><img src="glyph.svg" alt=""></div></div>
+    <div class="meta"><div class="title" id="ti">Waiting for the host…</div><div class="artist" id="ar">&nbsp;</div></div>
     <div class="bar"><i id="pr"></i></div>
     <div class="times"><span id="t0">0:00</span><span id="t1">0:00</span></div>
-    <div class="chip"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
-    <div class="row">
-      <button class="round" id="heart" aria-label="Love it"><svg viewBox="0 0 24 24" fill="#FF375F"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.2h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"/></svg></button>
-      <button class="round" id="nope" aria-label="Not for me"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="controls">
+      <button class="ctl" id="nope" aria-label="Not for me"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button class="ctl" id="heart" aria-label="Love it"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.2h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"/></svg></button>
     </div>
-    <button class="btn ghost" id="leave">Leave</button>
+    <div class="status"><div class="chip"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div></div>
+    <button class="leave" id="leave">Leave session</button>
+    <div class="yt"><small>Playing from YouTube</small><div class="ytbox"><div id="yt"></div></div></div>
   </section>
-  <div class="foot">A. Music · Listening together · protocol 1</div>
+  <div class="foot">Listening together · works with A. Music on Android</div>
 </div>
 <div id="toast"></div>
 <script src="tg.js"></script>
@@ -103,12 +138,25 @@ window.onYouTubeIframeAPIReady = () => {
 };
 function loadYT() { if (window.YT) return; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
 
+let lastArt = '';
+function setArt(url) {
+  if (url === lastArt) return; lastArt = url;
+  const yt = /i\.ytimg\.com/.test(url), a = $('art');
+  a.classList.toggle('yt', yt);
+  a.style.backgroundImage = url ? 'url("' + url + '")' : '';
+  $('ph').hidden = !!url;
+  const bg = $('bg');
+  ['bga', 'bgb'].forEach(i => $(i).style.backgroundImage = url ? 'url("' + url + '")' : '');
+  bg.classList.toggle('on', !!url); bg.classList.toggle('idle', !url);
+}
 function draw() {
   const s = TG.state();
-  if (!s.on) { $('live').hidden = true; $('join').hidden = false; return; }
+  if (!s.on) { $('live').hidden = true; $('join').hidden = false; $('pill').hidden = true; setArt(''); return; }
   const song = s.song, anyUp = s.up.some(x => x);
+  setArt(song.id ? song.thumb : '');
+  $('art').classList.toggle('paused', !(song.id && song.playing));
   $('ti').textContent = song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…');
-  $('ar').textContent = song.id ? song.artist || '' : ' ';
+  $('ar').textContent = song.id ? song.artist || '' : '\u00a0';
   const pos = song.id ? s.exp : 0;
   $('pr').style.width = song.dur ? Math.min(100, pos / song.dur * 100) + '%' : '0';
   $('t0').textContent = fmt(pos); $('t1').textContent = song.dur ? '-' + fmt(song.dur - pos) : '0:00';
@@ -121,7 +169,7 @@ function draw() {
   else txt = 'Catching up…';
   $('status').textContent = txt; $('dot').classList.toggle('ok', ok);
   document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
-  if ('mediaSession' in navigator && song.id) navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.thumb, sizes: '480x360' }] });
+  if ('mediaSession' in navigator && song.id) navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.thumb, sizes: '512x512' }] });
 }
 function burst(e) { const b = document.createElement('div'); b.className = 'float'; b.textContent = e; b.style.left = (20 + Math.random() * 60) + '%'; b.style.bottom = '120px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1700); }
 TG.onReaction = k => burst(k === 'heart' ? '❤️' : '✕');
@@ -133,11 +181,12 @@ $('go').onclick = async () => {
   if (code.length < 4) { toast('Type the code from your friend’s phone'); return; }
   loadYT();
   $('join').hidden = true; $('live').hidden = false;
-  try { await TG.join(code, player, draw, toast); try { history.replaceState(null, '', '#' + code); } catch (e) {} }
+  try { await TG.join(code, player, draw, toast); $('pill').textContent = code; $('pill').hidden = false; try { history.replaceState(null, '', '#' + code); } catch (e) {} }
   catch (e) { toast('Couldn’t start – try again'); $('join').hidden = false; $('live').hidden = true; }
 };
 $('leave').onclick = () => { TG.leave(true); try { history.replaceState(null, '', location.pathname); } catch (e) {} draw(); };
 $('heart').onclick = () => { TG.react('heart'); burst('❤️'); };
+
 $('nope').onclick = () => { TG.react('nope'); burst('✕'); };
 window.addEventListener('pagehide', () => TG.leave(true));
 </script>
