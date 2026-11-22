@@ -90,6 +90,11 @@ const TG = (() => {
       ui();
     } else if (k === 'qs') {
       if (f === st.hostId) mirror(String(m.q || ''));
+    } else if (k === 'sl') {
+      if (f === st.hostId && m.ri === st.searchId) {
+        const list = String(m.r || '') ? String(m.r).split(RS).map(one => { const x = one.split(FS); return { id: x[0], ti: x[1] || '', ar: x[2] || '', th: (x[3] || '').startsWith('https://') ? x[3] : 'https://i.ytimg.com/vi/' + x[0] + '/hqdefault.jpg' }; }).filter(x => validId(x.id)) : [];
+        st.searchId = ''; TG.onSearch && TG.onSearch(list);
+      }
     } else if (k === 'qa') {
       if (f === st.hostId) { const qi = String(m.qi || ''); st.pend = st.pend.filter(p => p.qi !== qi); }
     } else if (k === 'sw') {
@@ -205,6 +210,11 @@ const TG = (() => {
       p.tries++; p.at = now; send(msg('q', p.body));
     }
   }
+  function search(q) {
+    if (!st.on || !st.hostId) return 'nohost';
+    if (st.hostCap < 4) return 'old';
+    st.searchId = rnd(6); send(msg('sr', { qy: clip(q, 120), ri: st.searchId })); return 'ok';
+  }
   function edit(ids) {
     if (!st.on || !st.hostId) return 'nohost';
     if (st.hostCap < CAP) return 'old';
@@ -241,7 +251,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  return { join, leave, react, clean, request, edit, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
+  return { join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;

@@ -9,6 +9,7 @@ Install it as an app: iPhone/iPad → Share → *Add to Home Screen*; Chrome/Edg
 - **Plays in step with the host** – same song, same moment, kept in sync the same way the app does it.
 - **The app's player look** – big cover, the artwork blurred and drifting behind it, ♥ and ✕ reactions that reach the host.
 - **Up next** – see what's coming, move a song to play next or remove it (the host's queue changes too).
+- **Search** – type a song name; your friend's A. Music searches YouTube Music and you pick Play next or Add (needs A. Music build 265 or newer on the host).
 - **Add songs with a link** – YouTube, YouTube Music and SoundCloud play right here; Bandcamp plays on the host's phone; Spotify, Apple Music, Deezer, Tidal and other links are found on YouTube Music by the host's A. Music, the same way the app handles shared links.
 - **Private by design** – no account. The session code is the key: it names a private channel and locks every message with AES-256-GCM. Only tiny messages (song, play/pause, position) pass through two public relays (ntfy.sh, ntfy.envs.net).
 

@@ -98,7 +98,12 @@
   .sheet h2 { font-size:22px; margin:0 0 12px; letter-spacing:-.3px; display:flex; justify-content:space-between; align-items:center; }
   .sheet h2 button { border:0; background:var(--glass); color:var(--fg); width:32px; height:32px; border-radius:50%; font-size:18px; cursor:pointer; }
   .linkbar { display:flex; gap:8px; }
-  .linkbar input { flex:1; min-width:0; background:rgba(0,0,0,.35); border:0; border-radius:12px; color:#fff; font:16px inherit; font-family:inherit; padding:13px 14px; outline:none; }
+  .sbox { flex:1; display:flex; align-items:center; gap:8px; background:rgba(0,0,0,.35); border-radius:12px; padding:0 10px 0 12px; color:var(--fg2); }
+  .sbox:focus-within { box-shadow:0 0 0 2px var(--accent); }
+  .sbox svg { width:18px; height:18px; flex:none; }
+  .sbox button { border:0; background:rgba(255,255,255,.18); color:#fff; width:22px; height:22px; border-radius:50%; font-size:12px; cursor:pointer; flex:none; }
+  .linkbar input::-webkit-search-cancel-button { display:none; }
+  .linkbar input { flex:1; padding:13px 0 !important; background:transparent !important; box-shadow:none !important; min-width:0; background:rgba(0,0,0,.35); border:0; border-radius:12px; color:#fff; font:16px inherit; font-family:inherit; padding:13px 14px; outline:none; }
   .linkbar input:focus { box-shadow:0 0 0 2px var(--accent); }
   .two { display:flex; gap:8px; margin-top:8px; }
   .two button { flex:1; border:0; border-radius:12px; padding:12px 8px; font-weight:600; font-size:15px; font-family:inherit; cursor:pointer; color:#fff; background:var(--accent); display:flex; align-items:center; justify-content:center; gap:6px; }
@@ -118,6 +123,8 @@
   .rowi .ac button:active { background:rgba(255,255,255,.12); }
   .rowi .ac svg { width:20px; height:20px; }
   .rowi.now .t1 { color:var(--accent); }
+  .spin { width:22px; height:22px; border:2.5px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:rot .8s linear infinite; margin:26px auto; }
+  @keyframes rot { to { transform:rotate(360deg); } }
   .empty { color:var(--fg2); text-align:center; padding:26px 0; font-size:15px; }
   .info p { color:var(--fg2); margin:0 0 12px; font-size:15px; }
   .info b { color:var(--fg); font-weight:600; }
@@ -168,9 +175,10 @@
 <div class="sheet" id="qs" role="dialog" aria-label="Up next">
   <div class="grab"></div>
   <h2>Up next <button id="qx" aria-label="Close">✕</button></h2>
-  <div class="linkbar"><input id="link" type="url" inputmode="url" placeholder="Paste a song link" autocomplete="off" spellcheck="false"></div>
-  <div class="two"><button id="addNext"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>Play next</button><button class="alt" id="addLast">Add to queue</button></div>
-  <div class="small">YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. The song goes to the host's queue.</div>
+  <div class="linkbar"><div class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="link" type="search" enterkeyhint="search" placeholder="Search songs or paste a link" autocomplete="off" spellcheck="false"><button id="clr" aria-label="Clear" hidden>✕</button></div></div>
+  <div class="two" id="linkBtns" hidden><button id="addNext"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>Play next</button><button class="alt" id="addLast">Add to queue</button></div>
+  <div class="small" id="hint">Search YouTube Music, or paste a link from YouTube, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more.</div>
+  <div class="list" id="sr" hidden></div>
   <div class="list" id="ql"></div>
 </div>
 <div class="sheet info" id="is" role="dialog" aria-label="About">
@@ -183,7 +191,7 @@
       <li>Your friend opens <b>Listening together</b> in A. Music and starts a session.</li>
       <li>Type the code from their screen here and tap <b>Join</b>.</li>
       <li>On iPhone, tap <b>Tap for sound</b> once: Safari only plays sound after a tap.</li>
-      <li>Open <b>Up next</b> (bottom right) to see what's coming, move or remove songs, or paste a link: YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. Links from other services are found on YouTube Music by your friend's app.</li>
+      <li>Open <b>Up next</b> (bottom right) to see what's coming, move or remove songs, <b>search</b> for a song (your friend's A. Music searches YouTube Music for you), or paste a link: YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. Links from other services are found on YouTube Music by your friend's app.</li>
       <li>Tap ♥ or ✕ to tell the host what you think of a song.</li>
     </ul>
     <h3>Install it</h3>
@@ -443,16 +451,54 @@ async function addLink(next) {
     else if (TG.hostFinds()) song = { lk: u, ti: '', ar: '' };          // the host's app finds it on YouTube Music, as it does for shared links
     else song = await fromSongLink(u);
     const ok = TG.request(song, next);
-    $('link').value = '';
+    $('link').value = ''; mode();
     if (!ok) toast('Not connected to the host right now');
     else if (song.lk) toast('Sent – the host’s app is finding it on YouTube Music');
     else toast((next ? '“' + song.ti + '” plays next' : '“' + song.ti + '” added to the queue') + note);
   } catch (e) { toast(TG.hostFinds() ? 'Couldn’t read that link' : 'Couldn’t find that song – your friend may need the newest A. Music'); }
   finally { adding = false; $('addNext').disabled = $('addLast').disabled = false; }
 }
+// ---- search (through the host's A. Music, like the app's own search) or a pasted link
+const isLink = t => /^https?:\/\//i.test(t.trim());
+const ICON_NEXT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>';
+const ICON_ADD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+let results = [], sTimer = 0, sWait = 0;
+function mode() {
+  const t = $('link').value.trim();
+  $('clr').hidden = !t;
+  $('linkBtns').hidden = !isLink(t);
+  const searching = !!t && !isLink(t);
+  $('sr').hidden = !searching; $('ql').hidden = searching; $('hint').hidden = !!t;
+}
+function drawResults(list) {
+  results = list || [];
+  $('sr').innerHTML = results.length ? '<div class="sec">Songs</div>' + results.map((x, i) => {
+    const yt = /i\.ytimg\.com/.test(x.th);
+    return '<div class="rowi"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(x.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(x.ti) + '</div><div class="t2">' + esc(x.ar) + '</div></div>' +
+      '<div class="ac"><button data-r="next" data-i="' + i + '" aria-label="Play next">' + ICON_NEXT + '</button><button data-r="add" data-i="' + i + '" aria-label="Add to queue">' + ICON_ADD + '</button></div></div>';
+  }).join('') : '<div class="empty">No songs found</div>';
+}
+function runSearch() {
+  const t = $('link').value.trim(); if (!t || isLink(t)) return;
+  const r = TG.search(t);
+  if (r === 'old') { $('sr').innerHTML = '<div class="empty">Your friend needs A. Music build 265 or newer to search from here.<br>You can still paste a link.</div>'; return; }
+  if (r !== 'ok') { $('sr').innerHTML = '<div class="empty">Not connected to the host right now</div>'; return; }
+  $('sr').innerHTML = '<div class="spin"></div>';
+  clearTimeout(sWait); sWait = setTimeout(() => { if ($('sr').querySelector('.spin')) $('sr').innerHTML = '<div class="empty">No answer from the host – try again</div>'; }, 12000);
+}
+TG.onSearch = list => { clearTimeout(sWait); if (!$('sr').hidden) drawResults(list); };
+$('link').addEventListener('input', () => { mode(); clearTimeout(sTimer); const t = $('link').value.trim(); if (t && !isLink(t) && t.length >= 2) sTimer = setTimeout(runSearch, 650); });
+$('clr').onclick = () => { $('link').value = ''; mode(); $('link').focus(); };
+$('sr').onclick = e => {
+  const b = e.target.closest('button[data-r]'); if (!b) return;
+  const x = results[+b.dataset.i]; if (!x) return;
+  const next = b.dataset.r === 'next', ok = TG.request({ id: x.id, ti: x.ti, ar: x.ar, th: x.th, du: 0 }, next);
+  toast(!ok ? 'Not connected to the host right now' : next ? '\u201C' + x.ti + '\u201D plays next' : '\u201C' + x.ti + '\u201D added to the queue');
+  b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+};
 $('addNext').onclick = () => addLink(true);
 $('addLast').onclick = () => addLink(false);
-$('link').addEventListener('keydown', e => { if (e.key === 'Enter') addLink(false); });
+$('link').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (isLink($('link').value)) addLink(false); else { clearTimeout(sTimer); runSearch(); } } });
 
 // ---- installable app (works offline for the shell, always fetches the newest page when online)
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
