@@ -117,7 +117,7 @@ const TG = (() => {
 
   // ---- following the host (Together.remote / enforce, the same rules)
   const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
-  const g = { stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
+  const g = { pauseSeen: 0, stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
   // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
   const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64url = id => { try { return decodeURIComponent(escape(atob(id.replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { return ''; } };
@@ -149,35 +149,45 @@ const TG = (() => {
     if (age < 4000) enforce();
   }
   function expected(now) { let e = r.pos + (r.playing ? now - r.at : 0); if (r.dur > 3000 && e > r.dur - 400) e = r.dur - 400; return e; }
+  // a short record of what the follower did, for the About page's "Copy sync report"
+  const notes = [];
+  function note(t) { const d = new Date(); notes.push(d.toTimeString().slice(0, 8) + '  ' + t); if (notes.length > 150) notes.shift(); }
   function enforce() {
     if (!player || !player.ready || !r.id || r.local) return;
     const now = performance.now(), exp = expected(now);
     if (player.id() !== r.id) {
       if (now < g.loadCool || g.loads >= 3) return;
-      player.load(r.id, exp / 1000, r.playing); g.loads++; g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; r.isNew = false; return;
+      note('load ' + r.id + ' at ' + Math.round(exp / 1000) + ' s' + (r.playing ? '' : ' (paused)')); player.load(r.id, exp / 1000, r.playing); g.loads++; g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; r.isNew = false; return;
     }
     const pl = player.playing();
     // loaded but the song never starts (blocked or stuck while buffering): load it again, up to 3 times a song
-    if (r.playing && !pl && !g.ad) {
+    // (not while it is simply buffering a moment, and never at the end of the song: that would restart it)
+    const ps = player.state ? player.state() : -9, nearEnd = r.dur > 0 && exp > r.dur - 4000;
+    if (r.playing && !pl && !g.ad && ps !== 0 && !nearEnd) {
       if (!g.stuckSince) g.stuckSince = now;
-      else if (now - g.stuckSince > 7000 && now >= g.loadCool && g.retries < 3) {
-        g.retries++; g.stuckSince = 0; say('Starting the song again\u2026');
+      else if (now - g.stuckSince > (ps === 3 ? 15000 : 8000) && now >= g.loadCool && g.retries < 3) {
+        g.retries++; g.stuckSince = 0; note('song did not start (state ' + ps + ') - load again'); say('Starting the song again\u2026');
         player.load(r.id, exp / 1000, true); g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; return;
       }
     } else g.stuckSince = 0;
     g.loads = 0;
     if (r.playing && !pl) { g.steadySince = 0; if (now >= g.loadCool) player.play(); }
-    else if (!r.playing && pl) { g.steadySince = 0; player.pause(); }
+    else if (!r.playing && pl) {
+      // the host says "not playing" for a moment at every song change: only stop for a pause that lasts
+      if (!g.pauseSeen) g.pauseSeen = now;
+      if (now - g.pauseSeen > 700) { g.steadySince = 0; note('host paused - pause'); player.pause(); }
+    }
+    if (r.playing || !pl) g.pauseSeen = 0;
     if (pl && !g.steadySince) g.steadySince = now;
     const pos = player.time() * 1000; if (pos < 0) return;
     // an ad: the player says it is playing but the song's clock stands still. Hold the sync until the song runs again.
     if (pl && r.playing) {
       if (Math.abs(pos - g.lastT) > 20) { g.lastT = pos; g.lastTAt = now; if (g.ad) { g.ad = false; g.seekCool = 0; g.bigTries = 0; } }
-      else if (now - g.lastTAt > 1800) g.ad = true;
+      else if (now - g.lastTAt > 1800) { if (!g.ad) note('clock stopped while playing (ad?) - sync held'); g.ad = true; }
     } else { g.lastT = pos; g.lastTAt = now; }
     if (g.ad) { g.drift = 0; return; }
     const drift = pos - exp; g.drift = drift;
-    const jump = () => { player.seek(Math.max(0, exp + (r.playing ? g.lead : 0)) / 1000); g.steadySince = 0; g.checkLead = r.playing; };
+    const jump = () => { note('jump: ' + Math.round(drift) + ' ms off'); player.seek(Math.max(0, exp + (r.playing ? g.lead : 0)) / 1000); g.steadySince = 0; g.checkLead = r.playing; };
     if (r.seek) { r.seek = false; if (Math.abs(drift) > 800) { jump(); g.seekCool = now + 5000; } return; }
     if (now < g.seekCool) return;
     const steady = !r.playing || (pl && g.steadySince && now - g.steadySince > 6000);
@@ -270,7 +280,8 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  return { join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
+  const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms, lead ' + Math.round(g.lead || 0) + ' ms\n' + notes.join('\n');
+  return { report, join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;
