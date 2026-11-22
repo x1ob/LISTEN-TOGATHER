@@ -67,7 +67,7 @@
   .ctl:active { transform:scale(.86); background:rgba(255,255,255,.12); }
   .ctl svg { width:40px; height:40px; }
   /* the app's badge spot (where Lossless / Dolby Atmos sits): small dot + Listening together */
-  .badge { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,.2); color:rgba(255,255,255,.9); font-size:11px; font-weight:600; letter-spacing:.2px; cursor:default; }
+  .badge { cursor:pointer !important; display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,.2); color:rgba(255,255,255,.9); font-size:11px; font-weight:600; letter-spacing:.2px; cursor:default; }
   .badge i { width:6px; height:6px; border-radius:50%; background:var(--warn); box-shadow:0 0 6px var(--warn); transition:background .4s, box-shadow .4s; }
   .badge.ok i { background:var(--ok); box-shadow:0 0 6px var(--ok); }
   .status { display:flex; justify-content:center; margin-top:2px; min-height:20px; color:var(--fg2); font-size:13px; }
@@ -227,7 +227,7 @@
   </section>
   <div class="foot">Listening together · made by 7SN XOB</div>
 </div>
-<div class="engines" aria-hidden="true"><div id="yt"></div><iframe id="sc" allow="autoplay" title="SoundCloud" src="about:blank"></iframe></div>
+<div class="engines" aria-hidden="true"><div id="yt"></div><div id="yt2"></div><iframe id="sc" allow="autoplay" title="SoundCloud" src="about:blank"></iframe></div>
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="qs" role="dialog" aria-label="Up next">
   <div class="grab"></div>
@@ -257,6 +257,7 @@
       <li>On iPhone, tap <b>Tap for sound</b> once: Safari only plays sound after a tap.</li>
       <li>Open <b>Up next</b> (bottom right) to see what's coming, move or remove songs, <b>search</b> for a song (your friend's A. Music searches YouTube Music for you), or paste a link: YouTube, YouTube Music, SoundCloud, Bandcamp, Spotify, Apple Music, Deezer, Tidal and more. Links from other services are found on YouTube Music by your friend's app.</li>
       <li>Tap ♥ or ✕ to tell the host what you think of a song.</li>
+      <li>The dot on <b>Listening together</b> is green when you're in step with the host and yellow while catching up. Tap it to sync straight away.</li>
       <li>Tap ☆ next to the title to save a song to your <b>Favourites</b> (the star at the bottom left). They stay in this browser for next time, and you can download them as a playlist (.m3u) or copy the links. When you leave a session where you saved songs, the list opens so you can download it.</li>
     </ul>
     <h3>Install it</h3>
@@ -305,7 +306,14 @@ const player = {
     curId = id; kind = k;
     if (k === 'yt') {
       if (sc && scReady) sc.pause();
-      if (!soundOn) ytp.mute();
+      if (id === spareId && spareReady && ytnReady) {
+        // the next song is already loaded in the spare player: swap them (seamless change)
+        const old = ytp; ytp = ytn; ytn = old; spareId = ''; spareReady = false;
+        try { old.pauseVideo(); old.mute(); } catch (e) {}
+        try { if (soundOn) { ytp.unMute(); ytp.setVolume(100); } else ytp.mute(); ytp.seekTo(sec, true); if (play) ytp.playVideo(); } catch (e) {}
+        return;
+      }
+      if (soundOn) { try { ytp.unMute(); ytp.setVolume(100); } catch (e) {} } else ytp.mute();
       if (play) ytp.loadVideoById({ videoId: id, startSeconds: sec }); else ytp.cueVideoById({ videoId: id, startSeconds: sec });
     } else {
       ytReady && ytp.pauseVideo();
@@ -356,11 +364,35 @@ function checkSound() {
   if (kind === 'sc') muted = !soundOn; else { muted = !ytReady || ytp.isMuted(); if (!muted) soundOn = true; }
   $('tap').hidden = !curId || TG.kindOf(curId) === 'bc' || !muted;
 }
+// two YouTube players: one plays, the other quietly loads the next song in the host's list, so the change is seamless
+let ytn = null, ytnReady = false, spareId = '', spareReady = false, wantSound = false, soundTry = 0;
+const YT_VARS = { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 };
+function ytState(e) {
+  if (e.target === ytn) {                                         // the spare: once the next song has buffered, hold it at the start
+    if (e.data === 1 && spareId && !spareReady) { try { ytn.pauseVideo(); ytn.seekTo(0, true); } catch (x) {} spareReady = true; }
+    return;
+  }
+  // after Join (a tap on the page) try the sound on by itself; if the browser refuses, the page shows "Tap for sound"
+  if (e.data === 1 && wantSound && !soundOn && soundTry === 0) {
+    soundTry = 1;
+    try { ytp.unMute(); ytp.setVolume(100); } catch (x) {}
+    setTimeout(() => { try { if (ytp.getPlayerState() !== 1) { ytp.mute(); ytp.playVideo(); soundTry = 2; } else if (!ytp.isMuted()) soundOn = true; } catch (x) {} checkSound(); }, 1500);
+  }
+  checkSound();
+}
+function ytErr(e) { if (e.target !== ytp) { spareId = ''; spareReady = false; return; } toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); }
 window.onYouTubeIframeAPIReady = () => {
-  ytp = new YT.Player('yt', { host: 'https://www.youtube-nocookie.com', width: 200, height: 200, playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
-    events: { onReady: () => { ytReady = true; }, onStateChange: () => checkSound(),
-              onError: e => { toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); } } });
+  ytp = new YT.Player('yt', { host: 'https://www.youtube-nocookie.com', width: 200, height: 200, playerVars: YT_VARS, events: { onReady: () => { ytReady = true; }, onStateChange: ytState, onError: ytErr } });
+  ytn = new YT.Player('yt2', { host: 'https://www.youtube-nocookie.com', width: 200, height: 200, playerVars: YT_VARS, events: { onReady: () => { ytnReady = true; }, onStateChange: ytState, onError: ytErr } });
 };
+function preloadNext() {
+  const s = TG.state(); if (!s.on || !ytnReady || !curId || kind !== 'yt') return;
+  if (!(s.song.playing && s.exp > 10000)) return;                // let the current song settle first
+  const next = TG.queue().find(x => !x.phone);
+  if (!next || TG.kindOf(next.id) !== 'yt' || next.id === curId || next.id === spareId) return;
+  spareId = next.id; spareReady = false;
+  try { ytn.mute(); ytn.loadVideoById({ videoId: next.id, startSeconds: 0 }); } catch (e) { spareId = ''; }
+}
 function loadYT() { if (window.YT) return; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
 
 let lastArt = '';
@@ -395,12 +427,13 @@ function draw() {
   else if (!song.playing) { txt = 'Paused by the host'; ok = true; }
   else if (Math.abs(s.drift) < 1500) ok = true;
   else txt = 'Catching up…';
-  $('badge').classList.toggle('ok', ok); $('badge').title = ok ? 'In step with the host' : txt;
+  $('badge').classList.toggle('ok', ok); $('badge').title = (ok ? 'In step with the host' : txt) + ' \u2013 tap to sync';
   $('status').textContent = txt;
   lyricsTick(song, pos);
   document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
   session(song);
   favHeart();
+  preloadNext();
 }
 function burst(e) { const b = document.createElement('div'); b.className = 'float'; b.textContent = e; b.style.left = (20 + Math.random() * 60) + '%'; b.style.bottom = '120px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1700); }
 TG.onReaction = k => burst(k === 'heart' ? '❤️' : '✕');
@@ -411,7 +444,7 @@ $('code').addEventListener('input', e => { e.target.value = TG.clean(e.target.va
 $('go').onclick = async () => {
   const code = TG.clean($('code').value);
   if (code.length < 4) { toast('Type the code from your friend’s phone'); return; }
-  loadYT();
+  loadYT(); wantSound = true; soundTry = 0;
   $('join').hidden = true; $('live').hidden = false; wideCheck();
   try { await TG.join(code, player, draw, toast); $('pill').textContent = code; $('pill').hidden = false; try { history.replaceState(null, '', '#' + code); } catch (e) {} }
   catch (e) { toast('Couldn’t start – try again'); $('join').hidden = false; $('live').hidden = true; }
@@ -423,6 +456,7 @@ $('leave').onclick = () => { TG.leave(true); try { history.replaceState(null, ''
 $('heart').onclick = () => { TG.react('heart'); burst('❤️'); };
 
 $('nope').onclick = () => { TG.react('nope'); burst('✕'); };
+$('badge').onclick = () => { if (TG.syncNow()) toast('Syncing to the host'); };
 window.addEventListener('pagehide', () => TG.leave(true));
 
 // ---- sheets

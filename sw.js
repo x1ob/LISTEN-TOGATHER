@@ -1,5 +1,5 @@
 // A. Music Together: app shell for install and offline start. The page itself is always fetched fresh when online.
-const C = 'amt-v9', SHELL = ['./', 'index.html', 'tg.js', 'manifest.webmanifest', 'icon.svg', 'glyph.svg', 'icon-32.png', 'icon-180.png', 'icon-512.png'];
+const C = 'amt-v10', SHELL = ['./', 'index.html', 'tg.js', 'manifest.webmanifest', 'icon.svg', 'glyph.svg', 'icon-32.png', 'icon-180.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

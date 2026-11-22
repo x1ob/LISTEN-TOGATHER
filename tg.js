@@ -117,7 +117,7 @@ const TG = (() => {
 
   // ---- following the host (Together.remote / enforce, the same rules)
   const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
-  const g = { pauseSeen: 0, stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
+  const g = { manual: false, pauseSeen: 0, stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
   // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
   const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64url = id => { try { return decodeURIComponent(escape(atob(id.replace(/-/g, '+').replace(/_/g, '/')))); } catch (e) { return ''; } };
@@ -144,7 +144,7 @@ const TG = (() => {
     r.dur = Math.max(0, Math.min(43200000, m.du || 0));
     r.pos = Math.max(0, Math.min(43200000, (m.po || 0) + (r.playing ? delay : 0)));
     r.at = performance.now(); r.isNew = true;
-    if (m.sk === 1 && !isNew) r.seek = true;
+    if (m.sk === 1 && !isNew) { r.seek = true; if (m.hs === 1) g.manual = true; }
     if (isNew) { g.loadCool = 0; g.loads = 0; r.seek = false; g.bigTries = 0; g.retries = 0; g.stuckSince = 0; }
     if (age < 4000) enforce();
   }
@@ -188,7 +188,7 @@ const TG = (() => {
     if (g.ad) { g.drift = 0; return; }
     const drift = pos - exp; g.drift = drift;
     const jump = () => { note('jump: ' + Math.round(drift) + ' ms off'); player.seek(Math.max(0, exp + (r.playing ? g.lead : 0)) / 1000); g.steadySince = 0; g.checkLead = r.playing; };
-    if (r.seek) { r.seek = false; if (Math.abs(drift) > 800) { jump(); g.seekCool = now + 5000; } return; }
+    if (r.seek) { r.seek = false; const hand = g.manual; g.manual = false; if (Math.abs(drift) > (hand ? 250 : 800)) { jump(); g.seekCool = now + 5000; } return; }
     if (now < g.seekCool) return;
     const steady = !r.playing || (pl && g.steadySince && now - g.steadySince > 6000);
     if (steady && Math.abs(drift) < 1500) g.bigTries = 0;
@@ -196,10 +196,11 @@ const TG = (() => {
     let big = Math.abs(drift) > 5000 && now >= g.loadCool;
     if (big && g.bigTries >= 2) big = false;
     if (big) { g.bigTries++; jump(); g.seekCool = now + 8000; return; }
-    if (steady && Math.abs(drift) > (r.playing ? 1500 : 1000)) {
+    // small drift is left alone (a jump is a hiccup you hear); clearly off is fixed, at most once every 45 s
+    if (steady && Math.abs(drift) > (r.playing ? 2500 : 1000)) {
       if (now - g.firstCorr > 120000) { g.corrections = 0; g.firstCorr = now; }
       if (g.corrections >= 3) return;
-      g.corrections++; jump(); g.seekCool = now + 20000;
+      g.corrections++; jump(); g.seekCool = now + 45000;
     }
   }
   // ---- the host's up-next list (Together.hostQueue / mirror), song requests (sendQueued) and edits (guestEdit)
@@ -281,7 +282,8 @@ const TG = (() => {
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
   const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms, lead ' + Math.round(g.lead || 0) + ' ms\n' + notes.join('\n');
-  return { report, join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
+  const syncNow = () => { if (!st.on || !r.id) return false; r.seek = true; g.manual = true; g.seekCool = 0; g.corrections = 0; g.bigTries = 0; note('synced by a tap on the badge'); return true; };
+  return { syncNow, report, join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
 })();
 if (typeof module !== 'undefined') module.exports = TG;
