@@ -53,6 +53,9 @@
   .art.yt { background-size:auto 133%; }
   .art .ph { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
   .art .ph img { width:34%; opacity:.5; }
+  .tap { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; border:0; border-radius:999px; padding:12px 18px; font-weight:600; font-size:16px; font-family:inherit; color:#fff; background:rgba(0,0,0,.55); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); cursor:pointer; animation:pulse 1.6s ease-in-out infinite; }
+  .tap svg { width:20px; height:20px; }
+  @keyframes pulse { 50% { transform:translateX(-50%) scale(1.06); } }
   .meta { margin-top:30px; min-height:58px; }
   .title { font-size:22px; font-weight:700; letter-spacing:-.2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .artist { color:var(--fg2); font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -100,7 +103,7 @@
   </section>
 
   <section id="live" hidden>
-    <div class="art paused" id="art"><div class="ph" id="ph"><img src="glyph.svg" alt=""></div></div>
+    <div class="art paused" id="art"><div class="ph" id="ph"><img src="glyph.svg" alt=""></div><button class="tap" id="tap" hidden><svg viewBox="0 0 24 24" fill="#fff"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>Tap for sound</button></div>
     <div class="meta"><div class="title" id="ti">Waiting for the host…</div><div class="artist" id="ar">&nbsp;</div></div>
     <div class="bar"><i id="pr"></i></div>
     <div class="times"><span id="t0">0:00</span><span id="t1">0:00</span></div>
@@ -124,17 +127,31 @@ function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('on
 const fmt = ms => { ms = Math.max(0, ms | 0); const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 // the player the protocol drives: YouTube's own embedded player
+let soundOn = false;
 const player = {
   get ready() { return ytReady; },
   id: () => curId,
-  load(id, sec, play) { curId = id; if (play) ytp.loadVideoById({ videoId: id, startSeconds: sec }); else ytp.cueVideoById({ videoId: id, startSeconds: sec }); },
+  load(id, sec, play) {
+    curId = id;
+    if (!soundOn) ytp.mute();
+    if (play) ytp.loadVideoById({ videoId: id, startSeconds: sec }); else ytp.cueVideoById({ videoId: id, startSeconds: sec });
+  },
   play: () => ytp.playVideo(), pause: () => ytReady && ytp.pauseVideo(), seek: s => ytp.seekTo(s, true),
   time: () => ytReady && curId ? ytp.getCurrentTime() : -1,
   playing: () => ytReady && ytp.getPlayerState() === 1
 };
+// iPhone and most browsers only let a page make sound after a tap: the song starts muted, a tap turns the sound on
+function unlock() {
+  if (!ytReady) return;
+  soundOn = true;
+  try { ytp.unMute(); ytp.setVolume(100); if (TG.state().song.playing) ytp.playVideo(); } catch (e) {}
+  setTimeout(checkSound, 600);
+}
+function checkSound() { const muted = !ytReady || ytp.isMuted(); if (!muted) soundOn = true; $('tap').hidden = !curId || !muted; }
 window.onYouTubeIframeAPIReady = () => {
-  ytp = new YT.Player('yt', { playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1 },
-    events: { onReady: () => { ytReady = true; }, onError: e => { toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); } } });
+  ytp = new YT.Player('yt', { playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, mute: 1, autoplay: 0 },
+    events: { onReady: () => { ytReady = true; }, onStateChange: () => checkSound(),
+              onError: e => { toast(e.data === 101 || e.data === 150 ? "This song can't play outside YouTube – waiting for the next one" : "The song didn't load"); } } });
 };
 function loadYT() { if (window.YT) return; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
 
@@ -155,6 +172,7 @@ function draw() {
   const song = s.song, anyUp = s.up.some(x => x);
   setArt(song.id ? song.thumb : '');
   $('art').classList.toggle('paused', !(song.id && song.playing));
+  if (ytReady) checkSound();
   $('ti').textContent = song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…');
   $('ar').textContent = song.id ? song.artist || '' : '\u00a0';
   const pos = song.id ? s.exp : 0;
@@ -174,6 +192,7 @@ function draw() {
 function burst(e) { const b = document.createElement('div'); b.className = 'float'; b.textContent = e; b.style.left = (20 + Math.random() * 60) + '%'; b.style.bottom = '120px'; document.body.appendChild(b); setTimeout(() => b.remove(), 1700); }
 TG.onReaction = k => burst(k === 'heart' ? '❤️' : '✕');
 
+loadYT();
 $('code').value = (location.hash.slice(1) || '').toUpperCase();
 $('code').addEventListener('input', e => { e.target.value = TG.clean(e.target.value); });
 $('go').onclick = async () => {
@@ -184,6 +203,9 @@ $('go').onclick = async () => {
   try { await TG.join(code, player, draw, toast); $('pill').textContent = code; $('pill').hidden = false; try { history.replaceState(null, '', '#' + code); } catch (e) {} }
   catch (e) { toast('Couldn’t start – try again'); $('join').hidden = false; $('live').hidden = true; }
 };
+$('tap').onclick = e => { e.stopPropagation(); unlock(); };
+document.addEventListener('touchend', () => { if (!soundOn && curId) unlock(); }, { passive: true });
+document.addEventListener('click', () => { if (!soundOn && curId) unlock(); });
 $('leave').onclick = () => { TG.leave(true); try { history.replaceState(null, '', location.pathname); } catch (e) {} draw(); };
 $('heart').onclick = () => { TG.react('heart'); burst('❤️'); };
 
