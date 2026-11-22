@@ -148,6 +148,32 @@
   .info ul { color:var(--fg2); font-size:15px; margin:0 0 12px; padding-left:18px; }
   .info li { margin:4px 0; }
   .info .list { margin-top:0; }
+  /* every screen: the cover never pushes the controls off the bottom (short windows, laptops) */
+  .art, .lyr { width:min(100%, max(240px, calc(100svh - 420px))); }
+  @media (min-width:600px) { .wrap { max-width:520px; } .live { margin:auto 0; } }
+  /* desktop and landscape tablet: player on the left, lyrics on the right, Up next and About as a side panel */
+  @media (min-width:900px) and (min-height:560px) {
+    .wrap { max-width:1180px; padding-left:max(40px,env(safe-area-inset-left)); padding-right:max(40px,env(safe-area-inset-right)); }
+    .live { display:grid; grid-template-columns:minmax(300px,440px) minmax(0,1fr); column-gap:clamp(40px,6vw,96px); align-content:center; flex:1; }
+    .live > * { grid-column:1; }
+    .live .art { width:min(100%, max(260px, calc(100svh - 430px))); margin-top:20px; }
+    .live .lyr { display:block !important; grid-column:2; grid-row:1 / span 8; width:100%; height:min(78svh,760px); aspect-ratio:auto; align-self:center; margin:0; }
+    .live.lyrics .art { display:block; }
+    .lyr p { font-size:clamp(28px,2.5vw,38px); padding:12px 2px; }
+    .lyr p.plain { font-size:clamp(22px,1.9vw,28px); }
+    .title { font-size:26px; } .artist { font-size:20px; }
+    #lyBtn { visibility:hidden; }
+    .ctl:hover, .icon:hover { background:rgba(255,255,255,.1); }
+    .rowi .ac button:hover { background:rgba(255,255,255,.12); color:#fff; }
+    .sheet { left:auto; right:0; top:0; bottom:0; width:min(440px,92vw); max-width:none; max-height:none; margin:0; border-radius:22px 0 0 22px;
+             padding:max(20px,env(safe-area-inset-top)) 22px max(20px,env(safe-area-inset-bottom)); transform:translateX(105%); }
+    .sheet.on { transform:translateX(0); }
+    .sheet .grab { display:none; }
+    .scrim { background:rgba(0,0,0,.25); }
+    .foot { padding-top:12px; }
+    .hero { max-width:440px; margin:auto; }
+  }
+  @media (hover:hover) { .ctl, .icon, .btn, .two button, .rowi .ac button { transition:background .15s, transform .15s; } .btn:hover, .two button:hover { filter:brightness(1.12); } }
   @media (prefers-reduced-motion: reduce) { .bg i, .bg.idle::before { animation:none; } }
 </style>
 </head>
@@ -359,7 +385,7 @@ $('go').onclick = async () => {
   const code = TG.clean($('code').value);
   if (code.length < 4) { toast('Type the code from your friend’s phone'); return; }
   loadYT();
-  $('join').hidden = true; $('live').hidden = false;
+  $('join').hidden = true; $('live').hidden = false; wideCheck();
   try { await TG.join(code, player, draw, toast); $('pill').textContent = code; $('pill').hidden = false; try { history.replaceState(null, '', '#' + code); } catch (e) {} }
   catch (e) { toast('Couldn’t start – try again'); $('join').hidden = false; $('live').hidden = true; }
 };
@@ -545,6 +571,11 @@ function tint(url) {
 
 // ---- lyrics (LRCLIB, as the app): synced lines follow the host's position
 let lyOn = false, lyFor = '', lyLines = [], lyPlain = false, lyAt = -1;
+// wide screens keep the lyrics on the right all the time
+const wideMq = matchMedia('(min-width:900px) and (min-height:560px)');
+function wideCheck() { if (wideMq.matches) { if (!lyOn) lyricsShow(true); } else if (lyOn && lyWide) lyricsShow(false); lyWide = wideMq.matches; }
+let lyWide = false;
+(wideMq.addEventListener ? wideMq.addEventListener('change', wideCheck) : wideMq.addListener(wideCheck));
 function lyricsShow(on) { lyOn = on; $('live').classList.toggle('lyrics', on); $('lyBtn').classList.toggle('on', on); lyAt = -1; if (on) lyricsLoad(TG.state().song); }
 $('lyBtn').onclick = () => lyricsShow(!lyOn);
 setInterval(() => { if (lyOn) { const st = TG.state(); if (st.on) lyricsTick(st.song, st.exp); } }, 150);
