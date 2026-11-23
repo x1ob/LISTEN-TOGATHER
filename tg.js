@@ -82,7 +82,7 @@ const TG = (() => {
     RELAYS.forEach((r, i) => {
       if (anyUp && !up[i]) return;
       fetch(r + st.topic, { method: 'POST', body }).then(res => {
-        if (res.status === 429) { rest.for[i] = Math.min(600000, (rest.for[i] || 30000) * 2); rest.until[i] = performance.now() + rest.for[i]; note(r.replace('https://', '') + ' busy - resting ' + Math.round(rest.for[i] / 1000) + ' s'); }
+        if (res.status === 429 && !(performance.now() < (rest.until[i] || 0))) { rest.for[i] = Math.min(600000, (rest.for[i] || 30000) * 2); rest.until[i] = performance.now() + rest.for[i]; note(r.replace('https://', '') + ' busy - resting ' + Math.round(rest.for[i] / 1000) + ' s'); }
         else if (res.ok) { rest.for[i] = 0; sentOk[i] = (sentOk[i] || 0) + 1; }
         else { sentBad[i] = (sentBad[i] || 0) + 1; if (sentBad[i] < 4) note(r.replace('https://', '') + ' refused a message: HTTP ' + res.status); }
       }).catch(e => { sentBad[i] = (sentBad[i] || 0) + 1; if (sentBad[i] < 4) note(r.replace('https://', '') + ' could not be reached: ' + e.message); });
