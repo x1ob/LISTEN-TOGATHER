@@ -322,7 +322,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms, lead ' + Math.round(g.lead || 0) + ' ms\n' + notes.join('\n');
+  const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms\nrelays: ' + RELAYS.map((x, k) => x.split('/')[2] + (st.up[k] ? ' up' : ' down') + ' sent ' + (sentOk[k] || 0) + ' ok/' + (sentBad[k] || 0) + ' bad').join('; ') + '; ' + BROKERS.map((x, k) => x.split('/')[2] + (st.up[RELAYS.length + k] ? ' up' : ' down')).join('; ') + '\n' + notes.join('\n');
   const syncNow = () => { if (!st.on || !r.id) return false; r.seek = true; g.manual = true; g.seekCool = 0; g.corrections = 0; g.bigTries = 0; note('synced by a tap on the badge'); return true; };
   return { syncNow, report, join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
