@@ -19,8 +19,8 @@
   html,body { margin:0; height:100%; background:#000; color:var(--fg); font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Inter,sans-serif; overflow-x:hidden; }
   /* the player's background: the app's Modern flow - five soft colour clouds from the cover, drifting, drawn small on a
      canvas and scaled up (no CSS blur filters: those kept the iPhone's graphics busy every frame and warmed it up) */
-  #flow { position:fixed; inset:0; width:100%; height:100%; z-index:0; background:#101014; display:block; }
-  .shade { position:fixed; inset:0; z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(0,0,0,.28) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,.1) 60%,rgba(0,0,0,.55) 100%); }
+  #flow { position:fixed; left:0; top:0; width:100%; height:var(--vh,100%); z-index:0; background:#101014; display:block; }
+  .shade { position:fixed; left:0; right:0; top:0; height:var(--vh,100%); z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(0,0,0,.28) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,.1) 60%,rgba(0,0,0,.55) 100%); }
   .wrap { position:relative; z-index:1; max-width:440px; margin:0 auto; min-height:100%; display:flex; flex-direction:column;
           padding:max(18px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left)); }
   .top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -54,7 +54,7 @@
   .title { font-size:22px; font-weight:700; letter-spacing:-.2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .artist { color:var(--fg2); font-size:19px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bar { height:6px; background:rgba(255,255,255,.2); border-radius:3px; margin:20px 0 8px; overflow:hidden; }
-  .bar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:3px; }
+  .bar i { display:block; height:100%; width:100%; transform:scaleX(0); transform-origin:left; will-change:transform; background:rgba(255,255,255,.85); border-radius:3px; }
   .times { display:flex; align-items:center; justify-content:space-between; color:var(--fg2); font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
   .controls { display:flex; align-items:center; justify-content:space-evenly; margin:26px 0 10px; }
   .ctl { width:76px; height:76px; border:0; border-radius:50%; background:transparent; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s, background .15s; }
@@ -170,7 +170,7 @@
   /* ---- fit to the screen, no scrolling (any phone, tablet or window): the page is exactly the window's height and the
      cover takes what is left (sized by fit() below) */
   body.inlive { overflow:hidden; }
-  body.inlive .wrap { height:100vh; height:100dvh; min-height:0; }
+  body.inlive .wrap { height:100vh; height:100dvh; height:var(--vh,100dvh); min-height:0; box-sizing:border-box; }
   body.inlive .foot { display:none; }
   .live { flex:1; min-height:0; display:flex; flex-direction:column; }
   .live .art, .live .lyr { width:var(--art,300px); height:var(--art,300px); flex:none; aspect-ratio:auto; margin:clamp(8px,2.2dvh,26px) auto 0; }
@@ -319,10 +319,20 @@
   </div>
 </div>
 <div id="toast"></div>
-<script src="tg.js?v=17"></script>
+<script src="tg.js?v=18"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
+
+// write text only when it changed (each write makes the browser measure and lay the text out again)
+function put(id, t) { const e = $(id); if (e.textContent !== t) e.textContent = t; }
+// the real screen height: iOS home-screen apps report CSS heights short by the status bar (black band at the bottom)
+function vh() {
+  let h = innerHeight;
+  if (navigator.standalone) { const land = innerWidth > innerHeight; h = Math.max(h, land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height)); }
+  document.documentElement.style.setProperty('--vh', h + 'px');
+}
+vh(); addEventListener('resize', vh); addEventListener('orientationchange', () => setTimeout(vh, 300));
 let ytp = null, ytReady = false, curId = '', toastT = 0;
 function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 3200); }
 const fmt = ms => { ms = Math.max(0, ms | 0); const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -395,7 +405,7 @@ function unlock() {
 function checkSound() {
   let muted;
   if (kind === 'sc') muted = !soundOn; else { muted = !ytReady || ytp.isMuted(); if (!muted) soundOn = true; }
-  $('tap').hidden = !curId || TG.kindOf(curId) === 'bc' || !muted;
+  { const hid = !curId || TG.kindOf(curId) === 'bc' || !muted; if ($('tap').hidden !== hid) $('tap').hidden = hid; }
 }
 // two YouTube players: one plays, the other quietly loads the next song in the host's list, so the change is seamless
 let ytn = null, ytnReady = false, spareId = '', spareReady = false, wantSound = false, soundTry = 0;
@@ -475,7 +485,7 @@ const Flow = (() => {
     raf = 0;
     if (document.hidden) return;
     const busy = prev !== null, step = busy ? 16 : STEP * (sheetOpen() ? 4 : 1);
-    if (now - last >= step) { last = now; size(); paint(now); }
+    if (now - last >= step && !document.body.classList.contains('fullart')) { last = now; size(); paint(now); }
     if (!still.matches || busy) raf = requestAnimationFrame(frame);
   }
   function go() { if (!raf) raf = requestAnimationFrame(frame); }
@@ -522,11 +532,11 @@ function draw() {
   setArt(song.id ? song.thumb : '');
   $('art').classList.toggle('paused', !(song.id && song.playing));
   checkSound();
-  $('ti').textContent = song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…');
-  $('ar').textContent = song.id ? song.artist || '' : (s.host ? '\u00a0' : 'Connection servers reached: ' + s.up.filter(x => x).length + ' of ' + s.up.length);
+  put('ti', song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…'));
+  put('ar', song.id ? song.artist || '' : (s.host ? '\u00a0' : 'Connection servers reached: ' + s.up.filter(x => x).length + ' of ' + s.up.length));
   const pos = song.id ? s.exp : 0;
-  $('pr').style.width = song.dur ? Math.min(100, pos / song.dur * 100) + '%' : '0';
-  $('t0').textContent = fmt(pos); $('t1').textContent = song.dur ? '-' + fmt(song.dur - pos) : '0:00';
+  const pk = song.dur ? Math.min(1, pos / song.dur).toFixed(4) : '0'; if ($('pr').dataset.k !== pk) { $('pr').dataset.k = pk; $('pr').style.transform = 'scaleX(' + pk + ')'; }
+  put('t0', fmt(pos)); put('t1', song.dur ? '-' + fmt(song.dur - pos) : '0:00');
   let txt = '', ok = false;
   if (!anyUp) txt = 'Connecting…';
   else if (!s.host) txt = 'Looking for the host…';
@@ -536,10 +546,10 @@ function draw() {
   else if (!song.playing) { txt = 'Paused by the host'; ok = true; }
   else if (Math.abs(s.drift) < 1500) ok = true;
   else txt = 'Catching up…';
-  $('badge').classList.toggle('ok', ok); $('badge').title = (ok ? 'In step with the host' : txt) + ' \u2013 tap to sync';
-  $('status').textContent = txt;
+  $('badge').classList.toggle('ok', ok); { const bt = (ok ? 'In step with the host' : txt) + ' \u2013 tap to sync'; if ($('badge').title !== bt) $('badge').title = bt; }
+  put('status', txt);
   lyricsTick(song, pos);
-  document.title = song.id ? song.title + ' · Together' : 'A. Music Together';
+  { const dt = song.id ? song.title + ' · Together' : 'A. Music Together'; if (document.title !== dt) document.title = dt; }
   session(song);
   favHeart();
   preloadNext();
