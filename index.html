@@ -279,7 +279,8 @@
     <p>The page and the app talk through free public relays (ntfy and MQTT brokers). If one is busy or down, the others carry the session.</p>
     <h3>Something not in sync?</h3>
     <p>Tap below and send what it copies to your friend: it lists what this page did (songs loaded, jumps, pauses).</p>
-    <button class="btn" id="rep" style="margin:0 0 14px">Copy sync report</button>
+    <button class="btn" id="rep" style="margin:0 0 10px">Show sync report</button>
+    <textarea id="repTxt" readonly hidden style="width:100%;min-height:180px;margin:0 0 14px;border-radius:12px;border:0;padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace;background:rgba(255,255,255,.08);color:#fff"></textarea>
     <h3>No ads</h3>
     <p>This page can't remove YouTube's ads by itself. If one plays, the page holds the sync and catches up after it. For no ads at all, open this page in the <b>DuckDuckGo</b> or <b>Brave</b> browser, or use an ad blocker such as AdGuard (iPhone) or uBlock Origin (computer).</p>
     <h3>Credits</h3>
@@ -288,7 +289,7 @@
   </div>
 </div>
 <div id="toast"></div>
-<script src="tg.js?v=14"></script>
+<script src="tg.js?v=15"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -418,7 +419,7 @@ function draw() {
   $('art').classList.toggle('paused', !(song.id && song.playing));
   checkSound();
   $('ti').textContent = song.id ? song.title || 'Unknown song' : (s.host ? 'The host has nothing playing' : 'Waiting for the host…');
-  $('ar').textContent = song.id ? song.artist || '' : '\u00a0';
+  $('ar').textContent = song.id ? song.artist || '' : (s.host ? '\u00a0' : 'Connection servers reached: ' + s.up.filter(x => x).length + ' of ' + s.up.length);
   const pos = song.id ? s.exp : 0;
   $('pr').style.width = song.dur ? Math.min(100, pos / song.dur * 100) + '%' : '0';
   $('t0').textContent = fmt(pos); $('t1').textContent = song.dur ? '-' + fmt(song.dur - pos) : '0:00';
@@ -776,6 +777,16 @@ document.addEventListener('visibilitychange', () => {
 // ---- installable app (works offline for the shell, always fetches the newest page when online)
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 $('rep').onclick = () => { const t = TG.report(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copied – paste it in a message'), () => { prompt('Copy this:', t); }); };
+
+// ---- sync report: shown on the page (select and copy it), and copied when the browser allows
+$('rep').onclick = () => {
+  const t = TG.report(), box = $('repTxt');
+  box.hidden = false; box.value = t; box.focus(); box.select();
+  try { navigator.clipboard.writeText(t).then(() => toast('Report copied – paste it in a message'), () => toast('Select the text and copy it')); } catch (e) { toast('Select the text and copy it'); }
+};
+// any error on the page shows up, so it can be screenshotted
+window.addEventListener('error', e => { try { toast('Page error: ' + (e.message || e.error)); } catch (x) {} });
+window.addEventListener('unhandledrejection', e => { try { toast('Page error: ' + (e.reason && e.reason.message || e.reason)); } catch (x) {} });
 </script>
 </body>
 </html>
