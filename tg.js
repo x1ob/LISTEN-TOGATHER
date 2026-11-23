@@ -69,7 +69,7 @@ const TG = (() => {
   }
 
   const st = { on: false, topic: '', key: null, seq: 0, term: 0, hostId: null, hostAt: 0, welcomed: false, up: [false, false, false, false], src: [],
-    seen: [], lastSeq: new Map(), hostCap: 0, qRaw: null, qList: [], rQh: 0, rQhSet: false, hostQh: 0, hostQhSet: false, qMis: 0, lastQr: 0, pend: [], lags: new Map(), lastOpenAt: 0, rate: 0, rateAt: 0, lastHi: 0, lastPing: 0, startedAt: 0 };
+    seen: [], lastSeq: new Map(), hostCap: 0, qRaw: null, qList: [], rQh: 0, rQhSet: false, hostQh: 0, hostQhSet: false, qMis: 0, lastQr: 0, pend: [], lags: new Map(), ckRtt: Infinity, ckOff: 0, ckBestAt: 0, ckAskAt: 0, ckN: 0, lastOpenAt: 0, rate: 0, rateAt: 0, lastHi: 0, lastPing: 0, startedAt: 0 };
   let ui = () => {}, player = null;
 
   function msg(k, extra) { return Object.assign({ k, f: DEV, n: ++st.seq, w: Date.now(), v: PROTO, t: st.term }, extra || {}); }
@@ -125,6 +125,15 @@ const TG = (() => {
       if (k === 'wl') { st.welcomed = true; st.hostCap = m.cp || 0; }
       else { if ('qh' in m) { st.hostQh = m.qh | 0; st.hostQhSet = true; } remote(m, age); }
       ui();
+    } else if (k === 'ckr') {
+      // host clock, measured as internet time does: keep the reply with the shortest round trip (error at most half of it)
+      if (f === st.hostId && m.to === DEV) {
+        const t1 = Date.now(), rtt = t1 - (m.c || 0);
+        if (m.c > 0 && m.h > 0 && rtt >= 0 && rtt < 20000 && (rtt < st.ckRtt || (now - st.ckBestAt > 600000 && rtt < Math.max(st.ckRtt * 2, 600)))) {
+          const first = st.ckRtt === Infinity; st.ckRtt = rtt; st.ckOff = m.h - (m.c + t1) / 2; st.ckBestAt = now;
+          if (first) note('host clock measured: ' + Math.round(st.ckOff) + ' ms off, round trip ' + rtt + ' ms');
+        }
+      }
     } else if (k === 'qs') {
       if (f === st.hostId) mirror(String(m.q || ''));
     } else if (k === 'sl') {
@@ -148,7 +157,7 @@ const TG = (() => {
     if (f === st.hostId) { if (t > st.term) st.term = t; return true; }
     const take = st.hostId == null || t > st.term || (t === st.term && now - st.hostAt > 45000);
     if (!take) return false;
-    st.term = Math.max(st.term, t); st.hostId = f; return true;
+    st.term = Math.max(st.term, t); if (st.hostId !== f) { st.ckRtt = Infinity; st.ckN = 0; st.ckAskAt = 0; } st.hostId = f; return true;
   }
   function hi() { st.lastHi = performance.now(); send(msg('hi', { av: 'web 1.0', cp: CAP })); }
 
@@ -175,7 +184,9 @@ const TG = (() => {
     if (r.local) { r.id = ''; r.title = clip(m.ti, 200); r.artist = clip(m.ar, 200); r.thumb = ''; player && player.pause(); say('The host is playing a song from their phone \u2013 finding it online\u2026'); return; }
     const id = String(m.id || '');
     if (!validId(id)) return;
-    const delay = 150 + age, isNew = id !== r.id;
+    let delay = 150 + age; const isNew = id !== r.id;
+    // exact when the host's clock is measured: position po was true at the host's time ts
+    if (st.ckRtt < 4000 && m.ts > 0) delay = Math.max(0, Math.min(600000, Date.now() + st.ckOff - m.ts));
     r.id = id; r.title = clip(m.ti, 200); r.artist = clip(m.ar, 200);
     const mv = clip(m.mv, 700); r.mv = /^https:\/\/[^\s"'<>]+$/.test(mv) ? mv : (isNew ? '' : r.mv);
     const th = clip(m.th, 600); r.thumb = th.startsWith('https://') ? th : kindOf(id) === 'yt' ? 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' : '';
@@ -298,6 +309,7 @@ const TG = (() => {
     enforce();
     if (!st.welcomed && now - st.lastHi > (now - st.startedAt < 60000 ? 6000 : 20000)) hi();
     resend(now); checkQueueHash(now);
+    if (st.hostId && now - (st.ckAskAt || 0) > ((st.ckN || 0) < 6 ? 3000 : 120000)) { st.ckAskAt = now; st.ckN = (st.ckN || 0) + 1; send(msg('ck', { c: Date.now() })); }
     // tell the host how we are doing: every 20 s, and at once (at most every 1.5 s) when it changes, so its dot is honest
     if (st.hostId) {
       const ok = player && r.id && player.id() === r.id && player.time() >= 0 ? 1 : 0, pl = player && player.playing() ? 1 : 0, pst = ok * 2 + pl;
@@ -311,6 +323,7 @@ const TG = (() => {
     player = p; ui = onUi; sayFn = onSay;
     const d = await derive(code);
     Object.assign(st, { on: true, topic: d.topic, key: d.key, hostId: null, welcomed: false, term: 0, startedAt: performance.now(), warned: false });
+    st.ckRtt = Infinity; st.ckOff = 0; st.ckN = 0; st.ckAskAt = 0;
     st.lastSeq.clear(); st.lags.clear(); st.seen = []; st.pend = []; st.qList = []; st.qRaw = null; st.rQhSet = false; st.hostQhSet = false; st.hostCap = 0;
     for (let i = 0; i < RELAYS.length; i++) listen(i);
     mqttStart();
@@ -323,7 +336,7 @@ const TG = (() => {
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
-  const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms\nrelays: ' + RELAYS.map((x, k) => x.split('/')[2] + (st.up[k] ? ' up' : ' down') + ' sent ' + (sentOk[k] || 0) + ' ok/' + (sentBad[k] || 0) + ' bad').join('; ') + '; ' + BROKERS.map((x, k) => x.split('/')[2] + (st.up[RELAYS.length + k] ? ' up' : ' down')).join('; ') + '\n' + notes.join('\n');
+  const report = () => 'A. Music Together web 1.0 - ' + navigator.userAgent + '\nhost ' + (st.hostId ? 'yes' : 'no') + ', song ' + (r.id || '-') + ', drift ' + Math.round(g.drift || 0) + ' ms, host clock ' + (st.ckRtt === Infinity ? 'not measured' : Math.round(st.ckOff) + ' ms off (round trip ' + st.ckRtt + ' ms)') + '\nrelays: ' + RELAYS.map((x, k) => x.split('/')[2] + (st.up[k] ? ' up' : ' down') + ' sent ' + (sentOk[k] || 0) + ' ok/' + (sentBad[k] || 0) + ' bad').join('; ') + '; ' + BROKERS.map((x, k) => x.split('/')[2] + (st.up[RELAYS.length + k] ? ' up' : ' down')).join('; ') + '\n' + notes.join('\n');
   const syncNow = () => { if (!st.on || !r.id) return false; r.seek = true; g.manual = true; g.seekCool = 0; g.corrections = 0; g.bigTries = 0; note('synced by a tap on the badge'); return true; };
   return { syncNow, report, join, leave, react, clean, request, edit, search, validId, kindOf, urlOf, b64url, hostFinds: () => st.hostCap >= 3, queue: () => st.qList.slice(), canEdit: () => st.hostCap >= CAP, state: () => ({ on: st.on, up: st.up.slice(), host: !!st.hostId, welcomed: st.welcomed, song: Object.assign({}, r), drift: g.drift, ad: g.ad, exp: r.id ? expected(performance.now()) : 0 }),
            _test: { derive, seal, open } };
