@@ -83,18 +83,20 @@ const TG = (() => {
       if (anyUp && !up[i]) return;
       fetch(r + st.topic, { method: 'POST', body }).then(res => {
         if (res.status === 429) { rest.for[i] = Math.min(600000, (rest.for[i] || 30000) * 2); rest.until[i] = performance.now() + rest.for[i]; note(r.replace('https://', '') + ' busy - resting ' + Math.round(rest.for[i] / 1000) + ' s'); }
-        else if (res.ok) rest.for[i] = 0;
-      }).catch(() => {});
+        else if (res.ok) { rest.for[i] = 0; sentOk[i] = (sentOk[i] || 0) + 1; }
+        else { sentBad[i] = (sentBad[i] || 0) + 1; if (sentBad[i] < 4) note(r.replace('https://', '') + ' refused a message: HTTP ' + res.status); }
+      }).catch(e => { sentBad[i] = (sentBad[i] || 0) + 1; if (sentBad[i] < 4) note(r.replace('https://', '') + ' could not be reached: ' + e.message); });
     });
   }
+  const sentOk = [], sentBad = [];
   const rest = { until: [], for: [] };
   function fresh(id) { if (!id) return true; if (st.seen.includes(id)) return false; st.seen.push(id); if (st.seen.length > 60) st.seen.shift(); return true; }
 
   function listen(i) {
     const es = new EventSource(RELAYS[i] + st.topic + '/sse');
     st.src[i] = es;
-    es.onopen = () => { st.up[i] = true; st.lastOpenAt = performance.now(); if (!st.welcomed) hi(); ui(); };
-    es.onerror = () => { st.up[i] = false; ui(); };
+    es.onopen = () => { note('relay ' + RELAYS[i].split('/')[2] + ' open'); st.up[i] = true; st.lastOpenAt = performance.now(); if (!st.welcomed) hi(); ui(); };
+    es.onerror = () => { if (st.up[i]) note('relay ' + RELAYS[i].split('/')[2] + ' dropped'); st.up[i] = false; ui(); };
     es.onmessage = ev => {
       let o; try { o = JSON.parse(ev.data); } catch (e) { return; }
       if (o.event !== 'message' || !o.message || o.message.length > 8000) return;
@@ -192,15 +194,18 @@ const TG = (() => {
     const now = performance.now(), exp = expected(now);
     if (player.id() !== r.id) {
       if (now < g.loadCool || g.loads >= 3) return;
-      note('load ' + r.id + ' at ' + Math.round(exp / 1000) + ' s' + (r.playing ? '' : ' (paused)')); player.load(r.id, exp / 1000, r.playing); g.loads++; g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; r.isNew = false; return;
+      g.started = false; note('load ' + r.id + ' at ' + Math.round(exp / 1000) + ' s' + (r.playing ? '' : ' (paused)')); player.load(r.id, exp / 1000, r.playing); g.loads++; g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; r.isNew = false; return;
     }
     const pl = player.playing();
     // loaded but the song never starts (blocked or stuck while buffering): load it again, up to 3 times a song
     // (not while it is simply buffering a moment, and never at the end of the song: that would restart it)
     const ps = player.state ? player.state() : -9, nearEnd = r.dur > 0 && exp > r.dur - 4000;
-    if (r.playing && !pl && !g.ad && ps !== 0 && !nearEnd) {
+    // Only when the player never got going at all (still "not started" or "cued"): once anything played, that may be a
+    // YouTube ad, and loading again only brings another ad (iPhone, 23 Nov: ads after ads).
+    if (ps === 1 || ps === 2 || ps === 3) g.started = true;
+    if (r.playing && !pl && !g.ad && !g.started && (ps === -1 || ps === 5) && !nearEnd) {
       if (!g.stuckSince) g.stuckSince = now;
-      else if (now - g.stuckSince > (ps === 3 ? 15000 : 8000) && now >= g.loadCool && g.retries < 3) {
+      else if (now - g.stuckSince > 10000 && now >= g.loadCool && g.retries < 1) {
         g.retries++; g.stuckSince = 0; note('song did not start (state ' + ps + ') - load again'); say('Starting the song again\u2026');
         player.load(r.id, exp / 1000, true); g.loadCool = now + 5000; g.seekCool = now + 8000; g.steadySince = 0; return;
       }
