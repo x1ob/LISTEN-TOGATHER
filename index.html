@@ -275,6 +275,8 @@
     </ul>
     <h3>Keep listening with the screen off (iPhone)</h3>
     <p>Use this page in a <b>Safari tab</b> (not the Home Screen version). When you leave the page or lock the phone the music pauses: tap <b>▶ Play</b> in Control Center or on the Lock Screen and it carries on, back in step with the host.</p>
+    <h3>Can't connect?</h3>
+    <p>The page and the app talk through free public relays (ntfy and MQTT brokers). If one is busy or down, the others carry the session.</p>
     <h3>Something not in sync?</h3>
     <p>Tap below and send what it copies to your friend: it lists what this page did (songs loaded, jumps, pauses).</p>
     <button class="btn" id="rep" style="margin:0 0 14px">Copy sync report</button>
@@ -286,7 +288,7 @@
   </div>
 </div>
 <div id="toast"></div>
-<script src="tg.js?v=12"></script>
+<script src="tg.js?v=13"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);

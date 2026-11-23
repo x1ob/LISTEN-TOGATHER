@@ -6,6 +6,31 @@
 const TG = (() => {
   const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PROTO = 1, CAP = 2;
   const RELAYS = ['https://ntfy.sh/', 'https://ntfy.envs.net/'];
+  // second kind of relay: public MQTT brokers over secure WebSocket. ntfy lets an address send only about 250 messages a
+  // day; when that is used up every message is refused and nobody can connect. These have no daily cap.
+  const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+  const MQTT_JS = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
+  let mq = [];
+  function mqttStart() {
+    if (!window.mqtt) {
+      if (!document.getElementById('mqttjs')) { const t = document.createElement('script'); t.id = 'mqttjs'; t.src = MQTT_JS; t.onload = () => st.on && mqttStart(); t.onerror = () => note('could not load the MQTT library'); document.head.appendChild(t); }
+      return;
+    }
+    mqttStop();
+    const topic = 'amusic/tg/' + st.topic;
+    BROKERS.forEach((url, j) => {
+      const i = RELAYS.length + j;
+      try {
+        const c = window.mqtt.connect(url, { clientId: 'amw' + Math.random().toString(16).slice(2, 12), clean: true, keepalive: 30, reconnectPeriod: 3000, connectTimeout: 10000, protocolVersion: 4 });
+        c.on('connect', () => { c.subscribe(topic, { qos: 0 }); st.up[i] = true; st.lastOpenAt = performance.now(); note('connected to ' + url.split('/')[2]); if (!st.welcomed) hi(); ui(); });
+        c.on('close', () => { if (st.up[i]) note(url.split('/')[2] + ' closed'); st.up[i] = false; ui(); });
+        c.on('error', () => {});
+        c.on('message', (tp, payload) => { const b = payload.toString(); if (b.length <= 9000) incoming(b); });
+        mq[j] = c;
+      } catch (e) { note('MQTT ' + url + ' failed'); }
+    });
+  }
+  function mqttStop() { mq.forEach(c => { try { c.end(true); } catch (e) {} }); mq = []; }
   const enc = new TextEncoder(), dec = new TextDecoder();
   const rnd = n => { let s = ''; const a = crypto.getRandomValues(new Uint32Array(n)); for (const x of a) s += ALPHA[x % ALPHA.length]; return s; };
   const DEV = rnd(10);
@@ -43,7 +68,7 @@ const TG = (() => {
     }
   }
 
-  const st = { on: false, topic: '', key: null, seq: 0, term: 0, hostId: null, hostAt: 0, welcomed: false, up: [false, false], src: [],
+  const st = { on: false, topic: '', key: null, seq: 0, term: 0, hostId: null, hostAt: 0, welcomed: false, up: [false, false, false, false], src: [],
     seen: [], lastSeq: new Map(), hostCap: 0, qRaw: null, qList: [], rQh: 0, rQhSet: false, hostQh: 0, hostQhSet: false, qMis: 0, lastQr: 0, pend: [], lags: new Map(), lastOpenAt: 0, rate: 0, rateAt: 0, lastHi: 0, lastPing: 0, startedAt: 0 };
   let ui = () => {}, player = null;
 
@@ -51,6 +76,7 @@ const TG = (() => {
   async function send(m) {
     if (!st.key) return;
     const body = await seal(JSON.stringify(m), st.key);
+    mq.forEach(c => { try { if (c.connected) c.publish('amusic/tg/' + st.topic, body, { qos: 0 }); } catch (e) {} });
     // a relay that answers "too many requests" (429) rests for a while; the other one carries the messages
     const now = performance.now(), up = RELAYS.map((_, i) => now >= (rest.until[i] || 0)), anyUp = up.some(x => x);
     RELAYS.forEach((r, i) => {
@@ -79,7 +105,7 @@ const TG = (() => {
   async function incoming(body) {
     const now = performance.now();
     if (now - st.rateAt > 10000) { st.rateAt = now; st.rate = 0; }
-    if (++st.rate > 60) return;
+    if (++st.rate > 150) return;                 // (each message can arrive once per relay)
     let m; try { m = JSON.parse(await open(body, st.key)); } catch (e) { return; }
     const f = String(m.f || ''), k = m.k;
     if (!f || f.length > 40 || f === DEV) return;
@@ -281,12 +307,13 @@ const TG = (() => {
     Object.assign(st, { on: true, topic: d.topic, key: d.key, hostId: null, welcomed: false, term: 0, startedAt: performance.now(), warned: false });
     st.lastSeq.clear(); st.lags.clear(); st.seen = []; st.pend = []; st.qList = []; st.qRaw = null; st.rQhSet = false; st.hostQhSet = false; st.hostCap = 0;
     for (let i = 0; i < RELAYS.length; i++) listen(i);
+    mqttStart();
     tickId = setInterval(tick, 500);
   }
   function leave(tell) {
     if (!st.on) return;
     if (tell) send(msg('by', { h: 0 }));
-    st.on = false; clearInterval(tickId); st.src.forEach(e => e && e.close()); st.src = []; st.up = [false, false];
+    st.on = false; clearInterval(tickId); st.src.forEach(e => e && e.close()); st.src = []; mqttStop(); st.up = [false, false, false, false];
     player && player.pause(); r.id = ''; ui();
   }
   function react(kind) { if (st.on && st.hostId) send(msg('rx', { e: kind === 'nope' ? 2 : 1, c: 1, s: r.id })); }
