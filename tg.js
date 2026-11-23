@@ -153,7 +153,7 @@ const TG = (() => {
   function hi() { st.lastHi = performance.now(); send(msg('hi', { av: 'web 1.0', cp: CAP })); }
 
   // ---- following the host (Together.remote / enforce, the same rules)
-  const r = { id: '', title: '', artist: '', thumb: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
+  const r = { id: '', title: '', artist: '', thumb: '', mv: '', dur: 0, pos: 0, at: 0, playing: false, local: false, seek: false, isNew: false };
   const g = { manual: false, pauseSeen: 0, stuckSince: 0, retries: 0, ad: false, lastT: -1, lastTAt: 0, loadCool: 0, seekCool: 0, steadySince: 0, lead: 150, checkLead: false, bigTries: 0, corrections: 0, firstCorr: 0, loads: 0, drift: 0, unplayable: '' };
   // song ids as the app writes them: an 11-letter YouTube id, or "xs"/"xb" + the SoundCloud/Bandcamp address (base64url)
   const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -177,6 +177,7 @@ const TG = (() => {
     if (!validId(id)) return;
     const delay = 150 + age, isNew = id !== r.id;
     r.id = id; r.title = clip(m.ti, 200); r.artist = clip(m.ar, 200);
+    const mv = clip(m.mv, 700); r.mv = /^https:\/\/[^\s"'<>]+$/.test(mv) ? mv : (isNew ? '' : r.mv);
     const th = clip(m.th, 600); r.thumb = th.startsWith('https://') ? th : kindOf(id) === 'yt' ? 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' : '';
     r.dur = Math.max(0, Math.min(43200000, m.du || 0));
     r.pos = Math.max(0, Math.min(43200000, (m.po || 0) + (r.playing ? delay : 0)));
