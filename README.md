@@ -24,5 +24,22 @@ Install it as an app: iPhone/iPad → Share → *Add to Home Screen*; Chrome/Edg
 ## How it works
 `tg.js` speaks protocol 1 of A. Music's Listening together: PBKDF2-SHA256 (`accord-together-v1`, 30 000 rounds) turns the code into the channel name and the AES-256 key; every message is AES-GCM with a 12-byte nonce and the `accord-tg` label. `index.html` is the player (YouTube IFrame API and the SoundCloud widget, both off screen). `sw.js` makes it installable.
 
+## Files
+| File | What it is |
+|---|---|
+| `index.html` | The whole page: layout, styles, player UI, lyrics, favourites, Up next, search, About, Modern-flow background (canvas), motion artwork, YouTube/SoundCloud players. |
+| `tg.js` | The guest engine: session key and topic from the code, AES-GCM sealing (same as the app's Java code), relays (ntfy over SSE/POST and MQTT over secure WebSocket), the follow logic (clock offset, lag, pauses, catch-up jumps), messages to the host (hello, pings, requests, search, reactions). Loaded as `tg.js?v=N`. |
+| `sw.js` | Service worker: keeps the app shell for offline start (`amt-vN`, bumped with every change so phones get the new page). |
+| `manifest.webmanifest`, `icon*.png`, `icon.svg`, `glyph.svg` | Installable web app (home-screen icon). |
+| `robots.txt` | Keeps the page out of search engines. |
+| `CHANGELOG.md` | Every change, by date. |
+
+## Updating the page
+1. Change `index.html` / `tg.js`.
+2. Bump `tg.js?v=N` in `index.html` and `sw.js`, and the cache name `amt-vN` in `sw.js`.
+3. Commit and push to `main`; GitHub Pages serves it within a minute.
+
+Current: script v20, cache amt-v20 (24 Nov 2026).
+
 ## Credits
 Made by **7SN XOB** – [@x1ob](https://instagram.com/x1ob) on Instagram. Part of the A. Music project.
