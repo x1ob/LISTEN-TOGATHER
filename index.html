@@ -319,7 +319,7 @@
   </div>
 </div>
 <div id="toast"></div>
-<script src="tg.js?v=19"></script>
+<script src="tg.js?v=20"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -623,6 +623,10 @@ function favHeart() {
   const on = can && favs.some(x => x.key === favKey(song));
   if ($('fav').classList.contains('on') !== on) { $('fav').classList.toggle('on', on); $('fav').setAttribute('aria-label', on ? 'Remove from favourites' : 'Save to favourites'); }
 }
+// helpers used by favDraw, which runs at load: they must be defined first (TDZ bug before v20)
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 function favDraw() {
   favHeart();
   $('fvn').hidden = !favs.length; $('fvn').textContent = favs.length;
@@ -669,9 +673,6 @@ $('scrim').onclick = () => SHEETS.forEach(k => sheet(k, false));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') SHEETS.forEach(k => sheet(k, false)); });
 
 // ---- up next: the host's list; move to the top or remove (the host does the same)
-const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
-const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 function row(x, now) {
   const yt = /i\.ytimg\.com/.test(x.th);
   return '<div class="rowi' + (now ? ' now' : '') + '"><div class="th' + (yt ? ' yt' : '') + '" style="background-image:url(&quot;' + esc(x.th) + '&quot;)"></div><div class="tx"><div class="t1">' + esc(x.ti || 'Unknown song') + '</div><div class="t2">' + esc(x.phone ? (x.ar ? x.ar + ' \u00B7 ' : '') + 'from the host\u2019s phone' : (x.ar || '')) + '</div></div>' +
