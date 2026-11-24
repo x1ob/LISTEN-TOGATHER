@@ -1,7 +1,6 @@
 # Changelog
 
-Web guest for A. Music Listening together. Newest first. Cache name and script version in brackets where they changed.
-
+Web guest for A. Music Listening together. Newest first.
 
 ## 2026-11-24
 - Fix: page stopped loading when favourites were saved (helpers used before definition); cache v20
